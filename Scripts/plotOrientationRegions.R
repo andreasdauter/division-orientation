@@ -26,8 +26,12 @@ region_z = total_z / divisions
 spindle_regions = split(spindle_z, rep(1:floor(total_z), each=region_z, length.out=(total_z)))
 
 #Specify colours to iterate through
-colour_list = c("red", "orange", "yellow", "green", "cyan", "blue")
-
+  #colour_list = c("red", "orange", "yellow", "green", "cyan", "blue")
+  colour_list = hcl.colors(length(spindle_regions), palette = "Zissou 1")
+  #colour_list = c("#f94144", "#f3722c", "#f8961e", "#90be6d", "#43aa8b", "#277da1")
+  #colour_list = rainbow(6)
+#Set up multipanel view
+par(mfrow = c(2,3))
 ###Generate one rose plot per region###
 for(i in 1:length(spindle_regions)){
   # Make orientation data circular in each subset
@@ -35,16 +39,16 @@ for(i in 1:length(spindle_regions)){
   spindleOrientationA = circular(region_spindles$AreaShape_Orientation,type = "angles", units = "degrees",zero = pi/2)
   spindleOrientationB = circular(region_spindles$AreaShape_Orientation + 180,type = "angles", units = "degrees",zero = pi/2)
   spindleOrientation = c(spindleOrientationA,spindleOrientationB)
-  if (i==1) {
-  rose.diag(spindleOrientation, pch = 16, cex = 1, axes = TRUE, shrink = 1, bins = 24,
-            col = colour_list[i], border = "darkgray", radii.scale = "linear", prop = 14, tol = 0.02, tcl.text = 0.075, add=FALSE, alpha = 0.5)
-  } else {
-  rose.diag(spindleOrientation, pch = 16, cex = 1, axes = TRUE, shrink = 1, bins = 24,
-            col = colour_list[i], border = "darkgray", radii.scale = "linear", prop = 14, tol = 0.02, tcl.text = 0.075, add=TRUE, alpha = 0.5)    
-  }
+  rose.diag(spindleOrientation, pch = 13, cex = 1, axes = TRUE, shrink = 1, bins = 24,
+            col = colour_list[i], border = "grey5", radii.scale = "linear", prop = 12, tol = 0.02, tcl.text = -0.1, add=FALSE)
   # test for significance
   print(i)
-  kuiper.test(x=spindleOrientation)
+  print(kuiper.test(x=spindleOrientation))
 }
 test = Reduce(full_join, Reduce(full_join, spindle_regions[1]))         
+testspindle2 = spindleOrientation
 
+rose.diag(testspindle1, pch = 16, cex = 1, axes = TRUE, shrink = 1, bins = 24,
+          col = colour_list[1], border = "darkgray", radii.scale = "linear", prop = 14, tol = 0.02, tcl.text = 0.075) + 
+  rose.diag(testspindle2, pch = 16, cex = 1, axes = TRUE, shrink = 1, bins = 24,
+            col = colour_list[2], border = "darkgray", radii.scale = "linear", prop = 14, tol = 0.02, tcl.text = 0.075, add = TRUE)
