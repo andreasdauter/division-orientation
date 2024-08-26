@@ -8,7 +8,7 @@ fullpath <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 filepath <- paste(fullpath,"Data", sep="/")
 all_samples <- list.files(path=filepath, pattern = "*.csv", full.names=TRUE)
 
-spindles = read.csv(all_samples[2])
+spindles = read.csv(all_samples[3])
 
 
 

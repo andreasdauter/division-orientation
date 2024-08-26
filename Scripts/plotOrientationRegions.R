@@ -11,7 +11,7 @@ fullpath <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 filepath <- paste(fullpath,"Data", sep="/")
 all_samples <- list.files(path=filepath, pattern = "*.csv", full.names=TRUE)
 #Select your sample
-spindles = read.csv(all_samples[1])
+spindles = read.csv(all_samples[3])
 
 ###Subset sample by position along the vertical axis###
 
@@ -45,10 +45,3 @@ for(i in 1:length(spindle_regions)){
   print(i)
   print(kuiper.test(x=spindleOrientation))
 }
-test = Reduce(full_join, Reduce(full_join, spindle_regions[1]))         
-testspindle2 = spindleOrientation
-
-rose.diag(testspindle1, pch = 16, cex = 1, axes = TRUE, shrink = 1, bins = 24,
-          col = colour_list[1], border = "darkgray", radii.scale = "linear", prop = 14, tol = 0.02, tcl.text = 0.075) + 
-  rose.diag(testspindle2, pch = 16, cex = 1, axes = TRUE, shrink = 1, bins = 24,
-            col = colour_list[2], border = "darkgray", radii.scale = "linear", prop = 14, tol = 0.02, tcl.text = 0.075, add = TRUE)
