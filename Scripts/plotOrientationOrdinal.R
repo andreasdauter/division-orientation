@@ -18,9 +18,9 @@ spindleOrientationB = circular(spindles$AreaShape_Orientation + 180,type = "angl
 spindleOrientation = c(spindleOrientationA,spindleOrientationB)
 
 rose.diag(spindleOrientation, pch = 16, cex = 1, axes = TRUE, shrink = 1, bins = 24,
-          col = "cadetblue3", border = "cadetblue", radii.scale = "linear", prop = 14, tol = 0.02, tcl.text = 0.075)
+          col = "cadetblue3", border = "cadetblue3", radii.scale = "linear", prop = 14, tol = 0.02, tcl.text = 0.075)
 
 # test for significance
 ### rayleigh.test(x=spindleOrientationA)###
 kuiper.test(x=spindleOrientation)
-          
+           

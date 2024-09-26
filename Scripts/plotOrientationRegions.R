@@ -14,7 +14,6 @@ all_samples <- list.files(path=filepath, pattern = "*.csv", full.names=TRUE)
 spindles = read.csv(all_samples[3])
 
 ###Subset sample by position along the vertical axis###
-
 # Split df by position along z axis
 spindle_z = split(spindles, spindles$FileName_Spindle)
 
@@ -28,7 +27,8 @@ spindle_regions = split(spindle_z, rep(1:floor(total_z), each=region_z, length.o
 #Specify colours to iterate through
   #colour_list = c("red", "orange", "yellow", "green", "cyan", "blue")
   colour_list = hcl.colors(length(spindle_regions), palette = "Zissou 1")
-  #colour_list = c("#f94144", "#f3722c", "#f8961e", "#90be6d", "#43aa8b", "#277da1")
+  colour_list = c("#3B99B1", "#5ba683", "#b2d162", "#E9B31F", "#E78100", "#F5191C")
+  #colour_list = c("#EF5350", "#f8961e","#FFCA28", "#9CCC65", "#64B5F6", "#9575CD")
   #colour_list = rainbow(6)
 #Set up multipanel view
 par(mfrow = c(2,3))
@@ -40,8 +40,9 @@ for(i in 1:length(spindle_regions)){
   spindleOrientationB = circular(region_spindles$AreaShape_Orientation + 180,type = "angles", units = "degrees",zero = pi/2)
   spindleOrientation = c(spindleOrientationA,spindleOrientationB)
   rose.diag(spindleOrientation, pch = 13, cex = 1, axes = TRUE, shrink = 1, bins = 24,
-            col = colour_list[i], border = "grey5", radii.scale = "linear", prop = 12, tol = 0.02, tcl.text = -0.1, add=FALSE)
+            col = colour_list[i], border = "grey5", radii.scale = "linear", prop = 11.5, tol = 0.02, tcl.text = -0.1, add=FALSE)
   # test for significance
   print(i)
   print(kuiper.test(x=spindleOrientation))
 }
+
