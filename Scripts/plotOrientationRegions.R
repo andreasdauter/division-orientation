@@ -11,18 +11,18 @@ fullpath <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 filepath <- paste(fullpath,"Data", sep="/")
 all_samples <- list.files(path=filepath, pattern = "*.csv", full.names=TRUE)
 #Select your sample
-spindles = read.csv(all_samples[3])
+spindles = read.csv(all_samples[2])
 
 ###Subset sample by position along the vertical axis###
 # Split df by position along z axis
-spindle_z = split(spindles, spindles$FileName_Spindle)
+spindle_z = split(spindles, spindles$FileName)
 
 #Set number of desired divisions
-divisions = 6
+divisions = 4
 #Divide dataset into (mostly) equally sized groups of z slices
 total_z = length(spindle_z)
 region_z = total_z / divisions
-spindle_regions = split(spindle_z, rep(1:floor(total_z), each=region_z, length.out=(total_z)))
+spindle_regions = split(spindle_z, rep(1:ceiling(total_z), each=region_z, length.out=(total_z)))
 
 #Specify colours to iterate through
   #colour_list = c("red", "orange", "yellow", "green", "cyan", "blue")
@@ -31,7 +31,7 @@ spindle_regions = split(spindle_z, rep(1:floor(total_z), each=region_z, length.o
   #colour_list = c("#EF5350", "#f8961e","#FFCA28", "#9CCC65", "#64B5F6", "#9575CD")
   #colour_list = rainbow(6)
 #Set up multipanel view
-par(mfrow = c(2,3))
+par(mfrow = c(2,2))
 ###Generate one rose plot per region###
 for(i in 1:length(spindle_regions)){
   # Make orientation data circular in each subset
