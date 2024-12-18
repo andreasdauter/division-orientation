@@ -11,12 +11,12 @@ fullpath <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 filepath <- paste(fullpath,"Data", sep="/")
 all_samples <- list.files(path=filepath, pattern = "*.csv", full.names=TRUE)
 #Select your sample
-spindles = read.csv(all_samples[2])
+spindles = read.csv(all_samples[1])
 
 ###Subset sample by position along the vertical axis###
 # Split df by position along z axis
 spindle_z = split(spindles, spindles$FileName)
-
+ 
 #Set number of desired divisions
 divisions = 4
 #Divide dataset into (mostly) equally sized groups of z slices
