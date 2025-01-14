@@ -1,6 +1,8 @@
 
 library(EBImage)
-
+library(ggplot2)
+library(plyr)
+library(readr)
 
 
 matching_label_pairs <- function(matrix1, matrix2, min_pixels = 0) {
@@ -51,13 +53,22 @@ matching_label_pairs <- function(matrix1, matrix2, min_pixels = 0) {
   ))
 }
 
+# Load in data
+fullpath <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
+nucpath <- paste(fullpath,"Data/CellGeom", sep="/")
+spindlepath <- paste(fullpath,"Data/Spindles", sep="/")
+nuc_slices <- list.files(path=nucpath, pattern = "*.tiff", full.names=TRUE)
+spindle_slices <- list.files(path=spindlepath, pattern = "*.tiff", full.names=TRUE)
+
+#Note: Everything from here will be in a loop iterating through each slice, for speed
 # Generate labelmaps for spindles and nuclei
-### TO DO: use 'bwlabel' from EBImage
+spindle_labeled = bwlabel(spindle_image)
+nuc_labeled = bwlabel(nuc_image)
 
 # Pair nuclei with cells that most closely match
-
+matched_spindles <- matching_label_pairs(spindle_labeled, nuc_labeled, min_pixels = 5)
 # use the pair list to join the dataframes
-
+### This requires doing this on the DFs rather than the images. Will contact Lucas after the break.
 # Export joined dataframes for use in other scripts
 
 
