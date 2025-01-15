@@ -42,16 +42,24 @@ points2 = read.csv(paste(filepath,"CellGeom_CellShape.csv", sep="/"))
 # Convert z-slices to z coordinates
 zscale_factor = 5 #ratio of z-slice thickness to xy pixel size
 
-#Fetch and multiply the Z-slice for each row
-for (i in 1:nrow(df1)) {
-test_string = ("AurA_June7_A_3_frontface_z155c1.tiff")
-z_stack = as.numeric(str_sub(test_string, -10, -8))
-# TO DO: pull and insert into the Location_Z column
+for (i in 1:nrow(points1)) {
+  #Fetch the Z-stack position from the filename
+  z_stack = as.numeric(str_sub(points1$FileName[i], -10, -8))
+  # Convert into real coordinates and save
+  z_coord = z_stack * zscale_factor
+  points1$Location_Center_Z[i] = z_coord
+
+}
+# Repeat for second dataframe
+for (i in 1:nrow(points2)) {
+  #Fetch the Z-stack position from the filename
+  z_stack = as.numeric(str_sub(points2$FileName[i], -10, -8))
+  # Convert into real coordinates and save
+  z_coord = z_stack * zscale_factor
+  points2$Location_Center_Z[i] = z_coord
+  
 }
 
-# Or, piped:
-test_string %>% str_sub() %>%
-  as.numeric()
   
 
 # Find closest pairs using row numbers
