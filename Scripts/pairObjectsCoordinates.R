@@ -36,8 +36,8 @@ fullpath = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 filepath = paste(fullpath,"Data", sep="/")
 all_samples = list.files(path=filepath, pattern = "*.csv", full.names=TRUE)
 # Change names of files to load that contain coordinates.
-points1 = read.csv(paste(filepath,"test1.csv", sep="/"))
-points2 = read.csv(paste(filepath,"test2.csv", sep="/"))
+points1 = read.csv(paste(filepath,"CellGeom_SpindlePole.csv", sep="/"))
+points2 = read.csv(paste(filepath,"CellGeom_CellShape.csv", sep="/"))
 
 # Convert z-slices to z coordinates
 zscale_factor = 5 #ratio of z-slice thickness to xy pixel size
@@ -83,3 +83,10 @@ for (i in 1:nrow(paired_rows)) {
 }
 i=2
 merged_line = c(points1[as.numeric(paired_rows[i,1]),], points2[as.numeric(paired_rows[i,2])])
+
+# Save the merged df for later or load it back in
+write.csv(paste(filepath,"paired_geometry_orientation.csv", sep="/"))
+
+#####################################
+# If you've alread generated a paired DF, you can load it in and start here
+
