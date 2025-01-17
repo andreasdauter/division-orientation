@@ -1,6 +1,7 @@
 # Load necessary library
 library(dplyr)
 library(stringr)
+library(ggplot2)
 
 # Function to calculate the Euclidean distance
 euclidean_distance = function(coord1, coord2) {
@@ -81,12 +82,30 @@ for (i in 1:nrow(paired_rows)) {
   merged_line = c(points1[as.numeric(paired_rows[i,1]),], points2[as.numeric(paired_rows[i,2]),])
   paired_df[i,] = merged_line
 }
-i=2
-merged_line = c(points1[as.numeric(paired_rows[i,1]),], points2[as.numeric(paired_rows[i,2])])
 
 # Save the merged df for later or load it back in
 write.csv(paste(filepath,"paired_geometry_orientation.csv", sep="/"))
 
 #####################################
-# If you've alread generated a paired DF, you can load it in and start here
+# If you've already generated a paired DF, you can load it in and start here
+paired_df = read.csv(paste(filepath,"paired_geometry_orientation.csv", sep="/"))
 
+# Data cleaning: All pairs should be within the same Z-plane
+cleaned_paired_df = paired_df[paired_df$SpindlePole_Location_Center_Z == paired_df$NucShape_Location_Center_Z,]
+
+
+
+# Sanity check: plot euclidean distances between paired centers
+e_distances = vector(mode="numeric", length = nrow(cleaned_paired_df))
+
+for (i in 1:nrow(paired_df)) {
+  e_distances[i] = euclidean_distance(paired_df[i, c("SpindlePole_Location_Center_X", "SpindlePole_Location_Center_Y", "SpindlePole_Location_Center_Z")],paired_df[i, c("NucShape_Location_Center_X", "NucShape_Location_Center_Y", "NucShape_Location_Center_Z")])
+}
+sd(e_distances)
+mean(e_distances)
+summary(e_distances)
+e_df = as.data.frame(e_distances)
+ggplot(e_df, aes(x=e_distances)) + geom_histogram()
+quantile(e_distances, 0.95)
+boxplot(e_distances)
+which       
