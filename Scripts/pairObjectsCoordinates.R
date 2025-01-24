@@ -2,6 +2,7 @@
 library(dplyr)
 library(stringr)
 library(ggplot2)
+library(circular)
 
 # Function to calculate the Euclidean distance
 euclidean_distance = function(coord1, coord2) {
@@ -108,4 +109,33 @@ e_df = as.data.frame(e_distances)
 ggplot(e_df, aes(x=e_distances)) + geom_histogram()
 quantile(e_distances, 0.95)
 boxplot(e_distances)
-which       
+# TODO: Several panels of relationships:
+# Coordination of orientation (score by slice?)
+
+# Initialize empty dataframe
+var_by_slice = data.frame(matrix(ncol = 3, nrow = 0))
+colnames(var_by_slice) = c("Z-Coord", "Variance", "Orientation")
+#Populate the dataframe with variance of orientation by slice
+for (z in unique(cleaned_paired_df$SpindlePole_Location_Center_Z)) {
+  current_z = cleaned_paired_df[cleaned_paired_df$SpindlePole_Location_Center_Z == z, ]
+  angles_z = circular(current_z$SpindlePole_AreaShape_Orientation,type = "angles", units = "degrees")
+  var_z = var(angles_z)
+  row_vec = c(z,var_z, mean(angles_z))
+  var_by_slice = rbind(var_by_slice, row_vec)
+}
+colnames(var_by_slice) = c("ZCoord", "Variance", "Orientation")
+  # Plot variance vy Z position
+ggplot(var_by_slice, aes(x=ZCoord, y =Orientation)) + geom_point() + geom_errorbar(aes(ymin = Orientation-Variance, ymax = Orientation + Variance))
+
+  # What features maximally covary with orientation?
+
+# Orientation of nuclei vs division
+cor(cleaned_paired_df$SpindlePole_AreaShape_Orientation, cleaned_paired_df$NucShape_AreaShape_Orientation)
+
+# Tomorrow morning: rose-diags of both side-by-side, and a histogram of the difference between them.
+spindleOrientation = circular(cleaned_paired_df$SpindlePole_AreaShape_Orientation,type = "angles", units = "degrees",zero = pi/2)
+nucleusOrientation = circular(cleaned_paired_df$NucShape_AreaShape_Orientation,type = "angles", units = "degrees",zero = pi/2)
+difference = spindleOrientation - nucleusOrientation
+diffOrientation = cbind(difference, cleaned_paired_df$SpindlePole_Location_Center_Z)
+diffOrientation = as.data.frame(diffOrientation)
+ggplot(diffOrientation, aes(x=difference) ) + geom_histogram(colour="black", fill = "darkgray") + labs(x="Difference between spindle and nuclear orientation")

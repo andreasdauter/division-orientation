@@ -18,7 +18,7 @@ spindles = read.csv(all_samples[1])
 spindle_z = split(spindles, spindles$FileName)
  
 #Set number of desired divisions
-divisions = 4
+divisions = 6
 #Divide dataset into (mostly) equally sized groups of z slices
 total_z = length(spindle_z)
 region_z = total_z / divisions
@@ -26,12 +26,12 @@ spindle_regions = split(spindle_z, rep(1:ceiling(total_z), each=region_z, length
 
 #Specify colours to iterate through
   #colour_list = c("red", "orange", "yellow", "green", "cyan", "blue")
-  colour_list = hcl.colors(length(spindle_regions), palette = "Zissou 1")
+  #colour_list = hcl.colors(length(spindle_regions), palette = "Zissou 1")
   colour_list = c("#3B99B1", "#5ba683", "#b2d162", "#E9B31F", "#E78100", "#F5191C")
   #colour_list = c("#EF5350", "#f8961e","#FFCA28", "#9CCC65", "#64B5F6", "#9575CD")
   #colour_list = rainbow(6)
 #Set up multipanel view
-par(mfrow = c(2,2))
+par(mfrow = c(2,3))
 ###Generate one rose plot per region###
 for(i in 1:length(spindle_regions)){
   # Make orientation data circular in each subset

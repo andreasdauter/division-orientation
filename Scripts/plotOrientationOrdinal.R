@@ -12,7 +12,7 @@ spindles = read.csv(all_samples[1])
 
 
 
-# Make orientation data circular
+# Make orientation data circular                                        
 spindleOrientationA = circular(spindles$AreaShape_Orientation,type = "angles", units = "degrees",zero = pi/2)
 spindleOrientationB = circular(spindles$AreaShape_Orientation + 180,type = "angles", units = "degrees",zero = pi/2)
 spindleOrientation = c(spindleOrientationA,spindleOrientationB)
