@@ -33,7 +33,19 @@ pair_closest_points = function(df1, df2) {
   
   return(paired_points)
 }
-
+# Function to calculate the lowest difference between two angles for Alignment
+angle_diff = function(a, b) {
+  # Because our data is bidirectional, we must check to see if the opposite azimuth is closer, since it is arbitrary. Remove the diff1/diff2 comparison if you are working with unidirectional data
+  a = as.circular(a, unit = "degrees", type = "angles")
+  b = as.circular(b, unit = "degrees", type = "angles")
+  diff1 = abs(a - b) %% 360
+  diff2 = abs(a - (b - 180)) %% 360
+  diff3 = abs(b - (a - 180)) %% 360
+  print(diff1,diff2,diff3)
+  diff = as.circular(min(diff1, diff2, diff3), unit = "degrees", type="angles")
+  print(di)
+  ifelse(diff > 180, 360 - diff, diff)
+}
 #####
 # Load in both dataframes
 fullpath = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
@@ -67,7 +79,7 @@ for (i in 1:nrow(points2)) {
 # Find closest pairs by XYZ coords, indexed by row number
 paired_rows = pair_closest_points(points1, points2)
 
-# Prep both individual dataframes for pairing
+                               # Prep both individual dataframes for pairing
 # Assign name prefixes to every column in each for later identification
 ID_points1 = "SpindlePole"
 ID_points2 = "NucShape"
@@ -97,8 +109,13 @@ paired_df = paired_df %>%
   group_by(SpindlePole_Location_Center_Z) %>%
   mutate(SliceMean = (mean.circular(SpindlePole_AreaShape_Orientation*2)/2)) %>%
   ungroup()
+# Alignment: The absolute difference between the SliceMean and each individual angles
+paired_df = paired_df %>%
+  rowwise() %>%
+  mutate(Alignment = angle_diff(a=SliceMean, b=SpindlePole_AreaShape_Orientation))
 
-# Save the merged df for later or load it back in
+
+ # Save the merged df for later or load it back in
 write.csv(paired_df, paste(filepath,"paired_geometry_orientation.csv", sep="/"))
 
 #####################################
@@ -176,6 +193,10 @@ cleaned_paired_df = cleaned_paired_df[close_distances,]
 cor(cleaned_paired_df$SpindlePole_AreaShape_Orientation, cleaned_paired_df$NucShape_AreaShape_Orientation)
 
 # testing
-circtest = as.circular(c(148, 151, 157), type = "angles", units = "degrees")
+circtest = as.circular(c(359, 1), type = "angles", units = "degrees")
 circtest = circtest*2
 mean.circular(circtest)
+angle_diff = circular(350, units = "degrees") - circular(10, units = "degrees")
+angle_diff = conversion.circular(angle_diff, modulo = "asis", units = "degrees")
+
+
