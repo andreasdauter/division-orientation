@@ -35,9 +35,9 @@ pair_closest_points = function(df1, df2) {
 }
 # Function to calculate the lowest difference between two angles for Alignment
 angle_diff = function(a, b) {
-  # Because our data is bidirectional, we must check to see if the opposite azimuth is closer, since it is arbitrary. Remove the diff1/diff2 comparison if you are working with unidirectional data
+  # Because our data is bidirectional, we must check to see if the opposite azimuth is closer. Remove the diff1/diff2/diff3 comparison if you are working with unidirectional data
   a = as.circular(a, unit = "degrees", type = "angles")
-  b = as.circular(b, unit = "degrees", type = "angles")
+  b = as.circular(b, unit = "degrees", type = "angles") 
   diff1 = abs(a - b) %% 360
   diff2 = abs(a - (b - 180)) %% 360
   diff3 = abs(b - (a - 180)) %% 360
@@ -98,11 +98,10 @@ for (i in 1:nrow(paired_rows)) {
   paired_df[i,] = merged_line
 }
 # Convert circular data to the correct data type
-paired_df$SpindlePole_AreaShape_Orientation = as.circular(paired_df$SpindlePole_AreaShape_Orientation, units = "degrees")
-paired_df$NucShape_AreaShape_Orientation = as.circular(paired_df$NucShape_AreaShape_Orientation, units = "degrees")
-# TODO: MAJOR PROBLEM: Currently, only 'upper' component of angle is being considered. Angle doubling?
+paired_df$SpindlePole_AreaShape_Orientation = as.circular(paired_df$SpindlePole_AreaShape_Orientation, units = "degrees", type = "angles")
+paired_df$NucShape_AreaShape_Orientation = as.circular(paired_df$NucShape_AreaShape_Orientation, units = "degrees", type = "angles")
 
-# TODO: Add two new variables- SliceMean and Alignment- to each row
+# Add two new variables- SliceMean and Alignment- to each row
 # Trying to practice dplyr for this. First add SliceMean as the circular mean of all angles that share that
 # Because our data is diametrically bidirectional, we apply angle doubling
 paired_df = paired_df %>%
@@ -113,10 +112,16 @@ paired_df = paired_df %>%
 paired_df = paired_df %>%
   rowwise() %>%
   mutate(Alignment = angle_diff(a=SliceMean, b=SpindlePole_AreaShape_Orientation))
+# For easy access- spindlepole orientation as circular
+paired_df = paired_df %>%
+  mutate(SpindleAngle = SpindlePole_AreaShape_Orientation)
 
 
  # Save the merged df for later or load it back in
 write.csv(paired_df, paste(filepath,"paired_geometry_orientation.csv", sep="/"))
+
+
+
 
 #####################################
 # If you've already generated a paired DF, you can load it in and start here
@@ -131,15 +136,9 @@ cleaned_paired_df = paired_df[paired_df$SpindlePole_Location_Center_Z == paired_
 # This threshold comes from the 95 percentile of a manually annotated sample
 distance_threshold = 25
 # Convert circular data to the correct data type
-cleaned_paired_df$SpindlePole_AreaShape_Orientation = as.circular(cleaned_paired_df$SpindlePole_AreaShape_Orientation, units = "degrees")
-cleaned_paired_df$NucShape_AreaShape_Orientation = as.circular(cleaned_paired_df$NucShape_AreaShape_Orientation, units = "degrees")
-
-
-
-
-
-
-# Sanity check: plot euclidean distances between paired centers
+cleaned_paired_df$SpindlePole_AreaShape_Orientation = as.circular(cleaned_paired_df$SpindlePole_AreaShape_Orientation, units = "degrees", type = "angles")
+cleaned_paired_df$NucShape_AreaShape_Orientation = as.circular(cleaned_paired_df$NucShape_AreaShape_Orientation, units = "degrees", type = "angles")
+# Plot euclidean distances between paired centers
 e_distances = vector(mode="numeric", length = nrow(cleaned_paired_df))
 
 for (i in 1:nrow(paired_df)) {
@@ -148,9 +147,6 @@ for (i in 1:nrow(paired_df)) {
 close_distances = which(e_distances <= distance_threshold)
 #Subset pairs to those less than a reasonable distance apart
 cleaned_paired_df = cleaned_paired_df[close_distances,]
-  # sd(e_distances)
-  # mean(e_distances)
-  # summary(e_distances)
   # e_df = as.data.frame(e_distances)
   # ggplot(e_df, aes(x=e_distances)) + geom_histogram()
   # quantile(e_distances, 0.95)
@@ -159,6 +155,7 @@ cleaned_paired_df = cleaned_paired_df[close_distances,]
 ###### The next set of analyses are modular- run as needed ######
 
 ###### Coordination of orientation (scored by slice)
+#TODO: Change this section to use circular variance
   # Initialize empty dataframe for variance
   var_by_slice = data.frame(matrix(ncol = 3, nrow = 0))
   colnames(var_by_slice) = c("Z-Coord", "Variance", "Orientation")
@@ -200,3 +197,4 @@ angle_diff = circular(350, units = "degrees") - circular(10, units = "degrees")
 angle_diff = conversion.circular(angle_diff, modulo = "asis", units = "degrees")
 
 
+ggplot(paired_df, aes(x=Alignment)) + geom_histogram()
