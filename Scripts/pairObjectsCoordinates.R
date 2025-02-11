@@ -5,6 +5,7 @@ library(ggplot2)
 library(circular)
 library(bpnreg)
 library(Directional)
+library(Morpho)
 
 # Function to calculate the Euclidean distance
 euclidean_distance = function(coord1, coord2) {
@@ -41,16 +42,13 @@ angle_diff = function(a, b) {
   diff1 = abs(a - b) %% 360
   diff2 = abs(a - (b - 180)) %% 360
   diff3 = abs(b - (a - 180)) %% 360
-  print(diff1,diff2,diff3)
   diff = as.circular(min(diff1, diff2, diff3), unit = "degrees", type="angles")
-  print(di)
   ifelse(diff > 180, 360 - diff, diff)
 }
 #####
 # Load in both dataframes
 fullpath = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 filepath = paste(fullpath,"Data", sep="/")
-all_samples = list.files(path=filepath, pattern = "*.csv", full.names=TRUE)
 # Change names of files to load that contain coordinates.
 points1 = read.csv(paste(filepath,"CellGeom_SpindlePole.csv", sep="/"))
 points2 = read.csv(paste(filepath,"CellGeom_CellShape.csv", sep="/"))
@@ -79,7 +77,7 @@ for (i in 1:nrow(points2)) {
 # Find closest pairs by XYZ coords, indexed by row number
 paired_rows = pair_closest_points(points1, points2)
 
-                               # Prep both individual dataframes for pairing
+# Prep both individual dataframes for pairing
 # Assign name prefixes to every column in each for later identification
 ID_points1 = "SpindlePole"
 ID_points2 = "NucShape"
@@ -126,27 +124,33 @@ write.csv(paired_df, paste(filepath,"paired_geometry_orientation.csv", sep="/"))
 #####################################
 # If you've already generated a paired DF, you can load it in and start here
 paired_df = read.csv(paste(filepath,"paired_geometry_orientation.csv", sep="/"))
-
+# Convert circular data to the correct data type
+paired_df$SpindlePole_AreaShape_Orientation = as.circular(paired_df$SpindlePole_AreaShape_Orientation, units = "degrees", type = "angles")
+paired_df$NucShape_AreaShape_Orientation = as.circular(paired_df$NucShape_AreaShape_Orientation, units = "degrees", type = "angles")
+paired_df$SpindleAngle = as.circular(paired_df$SpindleAngle, units = "degrees", type = "angles")
+paired_df$SliceMean = as.circular(paired_df$SliceMean, units = "degrees", type = "angles")
+# Copy the original Df for reference
+raw_data = paired_df
 
 
 
 # Data cleaning: All pairs should be within the same Z-plane
-cleaned_paired_df = paired_df[paired_df$SpindlePole_Location_Center_Z == paired_df$NucShape_Location_Center_Z,]
+paired_df = paired_df[paired_df$SpindlePole_Location_Center_Z == paired_df$NucShape_Location_Center_Z,]
 # Cull all rows for which the distance between a cell and its paired vector is unreasonable (See euclidean distances below)
 # This threshold comes from the 95 percentile of a manually annotated sample
 distance_threshold = 25
 # Convert circular data to the correct data type
-cleaned_paired_df$SpindlePole_AreaShape_Orientation = as.circular(cleaned_paired_df$SpindlePole_AreaShape_Orientation, units = "degrees", type = "angles")
-cleaned_paired_df$NucShape_AreaShape_Orientation = as.circular(cleaned_paired_df$NucShape_AreaShape_Orientation, units = "degrees", type = "angles")
+paired_df$SpindlePole_AreaShape_Orientation = as.circular(paired_df$SpindlePole_AreaShape_Orientation, units = "degrees", type = "angles")
+paired_df$NucShape_AreaShape_Orientation = as.circular(paired_df$NucShape_AreaShape_Orientation, units = "degrees", type = "angles")
 # Plot euclidean distances between paired centers
-e_distances = vector(mode="numeric", length = nrow(cleaned_paired_df))
+e_distances = vector(mode="numeric", length = nrow(paired_df))
 
 for (i in 1:nrow(paired_df)) {
   e_distances[i] = euclidean_distance(paired_df[i, c("SpindlePole_Location_Center_X", "SpindlePole_Location_Center_Y", "SpindlePole_Location_Center_Z")],paired_df[i, c("NucShape_Location_Center_X", "NucShape_Location_Center_Y", "NucShape_Location_Center_Z")])
 }
 close_distances = which(e_distances <= distance_threshold)
 #Subset pairs to those less than a reasonable distance apart
-cleaned_paired_df = cleaned_paired_df[close_distances,]
+paired_df = paired_df[close_distances,]
   # e_df = as.data.frame(e_distances)
   # ggplot(e_df, aes(x=e_distances)) + geom_histogram()
   # quantile(e_distances, 0.95)
@@ -161,8 +165,8 @@ cleaned_paired_df = cleaned_paired_df[close_distances,]
   colnames(var_by_slice) = c("Z-Coord", "Variance", "Orientation")
   #Populate the dataframe with variance of orientation by slice
   #TODO: Fix this to use circular methods and angle doubling. This is junk right now.
-  for (z in unique(cleaned_paired_df$SpindlePole_Location_Center_Z)) {
-    current_z = cleaned_paired_df[cleaned_paired_df$SpindlePole_Location_Center_Z == z, ]
+  for (z in unique(paired_df$SpindlePole_Location_Center_Z)) {
+    current_z = paired_df[paired_df$SpindlePole_Location_Center_Z == z, ]
     angles_z = circular(current_z$SpindlePole_AreaShape_Orientation,type = "angles", units = "degrees")
     var_z = var(angles_z)
     row_vec = c(z,var_z, mean(angles_z))
@@ -175,20 +179,55 @@ cleaned_paired_df = cleaned_paired_df[close_distances,]
 ###### What features maximally covary with orientation?
   # Initialize df to record correlations
   feature_correlations = data.frame(variable = character(), correlation = numeric(), p_value = numeric(), stringsAsFactors = FALSE)
-  # Circular-linear correlations
-  for (var in names(cleaned_paired_df)) {
-    clctest = circlin.cor(cleaned_paired_df$SpindlePole_AreaShape_Orientation, cleaned_paired_df[[var]], rads = FALSE)
+  feature_subset = paired_df %>% select(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MajorAxisLength, NucShape_AreaShape_MinorAxisLength, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter)
+  # Linear correlations with significance testing per variable
+  for (var in names(feature_subset)) {
+    cortest = cor.test(feature_subset$Alignment, feature_subset[[var]], method = "spearman")
     
-    feature_correlations = rbind(feature_correlations, data.frame(variable = var, correlation = clctest[1], p_value = clctest[2]))
+    feature_correlations = rbind(feature_correlations, data.frame(variable = var, correlation = cortest$estimate, p_value = cortest$p.value))
     
   }
   
-  # Alternate approach- subset variables first. circlin.cor is already multivariate.
-  feature_subset = cleaned_paired_df %>% select(NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MajorAxisLength, NucShape_AreaShape_MinorAxisLength, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter)
-  #NOTE: This analysis must be done on ALIGNMENT- paramaterized as the angular distance between each cells orientation and the mean.
-###### Orientation of nuclei vs division
-cor(cleaned_paired_df$SpindlePole_AreaShape_Orientation, cleaned_paired_df$NucShape_AreaShape_Orientation)
+  feature_subset = paired_df %>% select(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MajorAxisLength, NucShape_AreaShape_MinorAxisLength, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter)
+  # Additional Feature: AspectRatio, defined as the ratio between the major and minor axes
+  feature_subset = feature_subset %>%
+    rowwise() %>%
+    mutate(AspectRatio = (NucShape_AreaShape_MajorAxisLength / NucShape_AreaShape_MinorAxisLength))
+  
+correlations2 = feature_correlations
 
+##### PCA of alignment in feature space
+# Cut out colinear features
+features_pca = feature_subset %>% select(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter, AspectRatio)
+nuc_pca = prcompfast(features_pca[,-1], retx = TRUE)
+# Eigenvectors
+evecs = nuc_pca$rotation
+# Eigenvalues
+evals = nuc_pca$sdev^2
+prop.evals <- round(evals/sum(evals),5)*100
+# PC Scores
+scores = nuc_pca$x
+dim(scores)
+length(prop.evals)
+
+
+xpc = 1
+ypc = 2
+plot(x = scores[,xpc], y = scores[,ypc], asp=1,
+     xlab=paste0(names(prop.evals)[xpc], ": ", prop.evals[xpc], "% variation"),
+     ylab=paste0(names(prop.evals)[ypc], ": ", prop.evals[ypc], "% variation"),
+     col = my.colors, main = paste("P60 PCs", xpc, "and", ypc),
+     cex.lab=1.4, cex.main=1.4, pch = 19,
+     ylim=c(min(scores[,ypc])-0.015, max(scores[,ypc])))
+legend("topleft", legend = c("Sufficient", "Deficient"),
+       pch=19, col = c("red", "blue"), cex=1)
+
+# Second try at the plot
+ggplot
+
+###### Orientation of nuclei vs division
+cor(paired_df$SpindlePole_AreaShape_Orientation, paired_df$NucShape_AreaShape_Orientation)
+ 
 # testing
 circtest = as.circular(c(359, 1), type = "angles", units = "degrees")
 circtest = circtest*2
@@ -198,3 +237,5 @@ angle_diff = conversion.circular(angle_diff, modulo = "asis", units = "degrees")
 
 
 ggplot(paired_df, aes(x=Alignment)) + geom_histogram()
+
+ctest = cor(feature_subset$Alignment, feature_subset$NucShape_AreaShape_Eccentricity)
