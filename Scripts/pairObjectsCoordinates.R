@@ -222,8 +222,13 @@ plot(x = scores[,xpc], y = scores[,ypc], asp=1,
 legend("topleft", legend = c("Sufficient", "Deficient"),
        pch=19, col = c("red", "blue"), cex=1)
 
+pc_df = cbind(features_pca, scores)
 # Second try at the plot
-ggplot
+ggplot(pc_df, aes(x=PC4, y = PC5, color = Alignment)) +
+  geom_point(size = 3) +
+  scale_color_gradient(low = "yellow", high = "red") +
+  theme_minimal() + 
+  labs(color = "Alignment", x = "PC1", y = "PC2", title = "PCA Plot of Nuclear Geometry")
 
 ###### Orientation of nuclei vs division
 cor(paired_df$SpindlePole_AreaShape_Orientation, paired_df$NucShape_AreaShape_Orientation)
