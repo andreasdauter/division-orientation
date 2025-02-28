@@ -77,7 +77,7 @@ for (i in 1:nrow(points2)) {
 # Find closest pairs by XYZ coords, indexed by row number
 paired_rows = pair_closest_points(points1, points2)
 
-# Prep both individual dataframes for pairing
+  # Prep both individual dataframes for pairing
 # Assign name prefixes to every column in each for later identification
 ID_points1 = "SpindlePole"
 ID_points2 = "NucShape"
@@ -101,15 +101,34 @@ paired_df$NucShape_AreaShape_Orientation = as.circular(paired_df$NucShape_AreaSh
 
 # Add two new variables- SliceMean and Alignment- to each row
 # Trying to practice dplyr for this. First add SliceMean as the circular mean of all angles that share that
+
 # Because our data is diametrically bidirectional, we apply angle doubling
+
+#NOTE: The good for this first pass works on a slicewise mean. We've since moved to larger bins
+# paired_df = paired_df %>%
+#   group_by(SpindlePole_Location_Center_Z) %>%
+#   mutate(SliceMean = (mean.circular(SpindlePole_AreaShape_Orientation*2)/2)) %>%
+#   ungroup()
+
+# Alignment: The absolute difference between the SliceMean and each individual angles
+# paired_df = paired_df %>%
+#   rowwise() %>%
+#   mutate(Alignment = angle_diff(a=SliceMean, b=SpindlePole_AreaShape_Orientation))
+
+# Define number of bins and assign each row a bin ID
+bin_count = 6
 paired_df = paired_df %>%
-  group_by(SpindlePole_Location_Center_Z) %>%
+  mutate(avg_bin = ntile(row_number(), bin_count)) %>%
+  group_by(avg_bin) %>%
   mutate(SliceMean = (mean.circular(SpindlePole_AreaShape_Orientation*2)/2)) %>%
   ungroup()
-# Alignment: The absolute difference between the SliceMean and each individual angles
-paired_df = paired_df %>%
-  rowwise() %>%
-  mutate(Alignment = angle_diff(a=SliceMean, b=SpindlePole_AreaShape_Orientation))
+
+# Alignment: The absolute difference between the Bin Mean (SliceMean) and each individual angles
+ paired_df = paired_df %>%
+   rowwise() %>%
+   mutate(Alignment = angle_diff(a=SliceMean, b=SpindlePole_AreaShape_Orientation))
+
+
 # For easy access- spindlepole orientation as circular
 paired_df = paired_df %>%
   mutate(SpindleAngle = SpindlePole_AreaShape_Orientation)
@@ -197,9 +216,10 @@ paired_df = paired_df[close_distances,]
 correlations2 = feature_correlations
 
 ##### PCA of alignment in feature space
-# Cut out colinear features
+# Cut out redundant features
 features_pca = feature_subset %>% select(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter, AspectRatio)
-nuc_pca = prcompfast(features_pca[,-1], retx = TRUE)
+# use the correlation matrix rather than the covariance matrix, since the scales are different
+nuc_pca = prcompfast(features_pca[,-1], retx = TRUE, scale. = TRUE)
 # Eigenvectors
 evecs = nuc_pca$rotation
 # Eigenvalues
@@ -211,24 +231,33 @@ dim(scores)
 length(prop.evals)
 
 
-xpc = 1
-ypc = 2
-plot(x = scores[,xpc], y = scores[,ypc], asp=1,
-     xlab=paste0(names(prop.evals)[xpc], ": ", prop.evals[xpc], "% variation"),
-     ylab=paste0(names(prop.evals)[ypc], ": ", prop.evals[ypc], "% variation"),
-     col = my.colors, main = paste("P60 PCs", xpc, "and", ypc),
-     cex.lab=1.4, cex.main=1.4, pch = 19,
-     ylim=c(min(scores[,ypc])-0.015, max(scores[,ypc])))
-legend("topleft", legend = c("Sufficient", "Deficient"),
-       pch=19, col = c("red", "blue"), cex=1)
+
 
 pc_df = cbind(features_pca, scores)
-# Second try at the plot
-ggplot(pc_df, aes(x=PC4, y = PC5, color = Alignment)) +
+# PC plots
+ggplot(pc_df, aes(x=PC1, y = PC2, color = Alignment)) +
   geom_point(size = 3) +
   scale_color_gradient(low = "yellow", high = "red") +
   theme_minimal() + 
   labs(color = "Alignment", x = "PC1", y = "PC2", title = "PCA Plot of Nuclear Geometry")
+
+ggplot(pc_df, aes(x=PC2, y = PC3, color = Alignment)) +
+  geom_point(size = 3) +
+  scale_color_gradient(low = "yellow", high = "red") +
+  theme_minimal() + 
+  labs(color = "Alignment", x = "PC2", y = "PC3", title = "PCA Plot of Nuclear Geometry")
+
+ggplot(pc_df, aes(x=PC3, y = PC4, color = Alignment)) +
+  geom_point(size = 3) +
+  scale_color_gradient(low = "yellow", high = "red") +
+  theme_minimal() + 
+  labs(color = "Alignment", x = "PC3", y = "PC4", title = "PCA Plot of Nuclear Geometry")
+
+ggplot(pc_df, aes(x=PC4, y = PC5, color = Alignment)) +
+  geom_point(size = 3) +
+  scale_color_gradient(low = "yellow", high = "red") +
+  theme_minimal() + 
+  labs(color = "Alignment", x = "PC4", y = "PC5", title = "PCA Plot of Nuclear Geometry")
 
 ###### Orientation of nuclei vs division
 cor(paired_df$SpindlePole_AreaShape_Orientation, paired_df$NucShape_AreaShape_Orientation)
