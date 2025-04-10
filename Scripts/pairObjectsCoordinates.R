@@ -6,6 +6,8 @@ library(circular)
 library(bpnreg)
 library(Directional)
 library(Morpho)
+library(car)
+library(biotools)
 
 # Function to calculate the Euclidean distance
 euclidean_distance = function(coord1, coord2) {
@@ -37,12 +39,12 @@ pair_closest_points = function(df1, df2) {
 # Function to calculate the lowest difference between two angles for Alignment
 angle_diff = function(a, b) {
   # Because our data is bidirectional, we must check to see if the opposite azimuth is closer. Remove the diff1/diff2/diff3 comparison if you are working with unidirectional data
-  a = as.circular(a, unit = "degrees", type = "angles")
-  b = as.circular(b, unit = "degrees", type = "angles") 
+  a = as.circular(a, units = "degrees", type = "angles")
+  b = as.circular(b, units = "degrees", type = "angles") 
   diff1 = abs(a - b) %% 360
   diff2 = abs(a - (b - 180)) %% 360
   diff3 = abs(b - (a - 180)) %% 360
-  diff = as.circular(min(diff1, diff2, diff3), unit = "degrees", type="angles")
+  diff = as.circular(min(diff1, diff2, diff3), units = "degrees", type="angles")
   ifelse(diff > 180, 360 - diff, diff)
 }
 #####
@@ -86,7 +88,6 @@ names(points2) = paste0(ID_points2, "_", names(points2))
 
 # Initialize new dataframe for both sets of columns
 merged_columns = union(names(points1), names(points2))
-
 paired_df = data.frame(matrix(ncol = length(merged_columns), nrow = length(paired_rows)))
 colnames(paired_df) = merged_columns
 
@@ -95,6 +96,7 @@ for (i in 1:nrow(paired_rows)) {
   merged_line = c(points1[as.numeric(paired_rows[i,1]),], points2[as.numeric(paired_rows[i,2]),])
   paired_df[i,] = merged_line
 }
+
 # Convert circular data to the correct data type
 paired_df$SpindlePole_AreaShape_Orientation = as.circular(paired_df$SpindlePole_AreaShape_Orientation, units = "degrees", type = "angles")
 paired_df$NucShape_AreaShape_Orientation = as.circular(paired_df$NucShape_AreaShape_Orientation, units = "degrees", type = "angles")
@@ -104,21 +106,21 @@ paired_df$NucShape_AreaShape_Orientation = as.circular(paired_df$NucShape_AreaSh
 
 # Because our data is diametrically bidirectional, we apply angle doubling
 
-#NOTE: The good for this first pass works on a slicewise mean. We've since moved to larger bins
+#NOTE: The code for this first pass works on a slicewise mean. We've since moved to larger bins
 # paired_df = paired_df %>%
 #   group_by(SpindlePole_Location_Center_Z) %>%
 #   mutate(SliceMean = (mean.circular(SpindlePole_AreaShape_Orientation*2)/2)) %>%
 #   ungroup()
 
 # Alignment: The absolute difference between the SliceMean and each individual angles
-# paired_df = paired_df %>%
-#   rowwise() %>%
-#   mutate(Alignment = angle_diff(a=SliceMean, b=SpindlePole_AreaShape_Orientation))
+#paired_df = paired_df %>%
+# rowwise() %>%
+# mutate(Alignment = angle_diff(a=SliceMean, b=SpindlePole_AreaShape_Orientation))
 
 # Define number of bins and assign each row a bin ID
-bin_count = 6
+bin_count = 12
 paired_df = paired_df %>%
-  mutate(avg_bin = ntile(row_number(), bin_count)) %>%
+  mutate(avg_bin = ntile(row_number(paired_df), bin_count)) %>%
   group_by(avg_bin) %>%
   mutate(SliceMean = (mean.circular(SpindlePole_AreaShape_Orientation*2)/2)) %>%
   ungroup()
@@ -128,14 +130,15 @@ paired_df = paired_df %>%
    rowwise() %>%
    mutate(Alignment = angle_diff(a=SliceMean, b=SpindlePole_AreaShape_Orientation))
 
-
+is.circular(paired_df$SpindlePole_AreaShape_Orientation)
+is.circular(paired_df$SliceMean)
 # For easy access- spindlepole orientation as circular
 paired_df = paired_df %>%
   mutate(SpindleAngle = SpindlePole_AreaShape_Orientation)
 
 
  # Save the merged df for later or load it back in
-write.csv(paired_df, paste(filepath,"paired_geometry_orientation.csv", sep="/"))
+write.csv(paired_df, paste(filepath,"paired_geometry_orientation_12bin.csv", sep="/"))
 
 
 
@@ -215,11 +218,14 @@ paired_df = paired_df[close_distances,]
   
 correlations2 = feature_correlations
 
+
+
 ##### PCA of alignment in feature space
 # Cut out redundant features
 features_pca = feature_subset %>% select(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter, AspectRatio)
+features_pca = feature_subset %>% select(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_Perimeter, AspectRatio)
 # use the correlation matrix rather than the covariance matrix, since the scales are different
-nuc_pca = prcompfast(features_pca[,-1], retx = TRUE, scale. = TRUE)
+nuc_pca = prcomp(features_pca[,-1], retx = TRUE, scale. = TRUE)
 # Eigenvectors
 evecs = nuc_pca$rotation
 # Eigenvalues
@@ -230,10 +236,8 @@ scores = nuc_pca$x
 dim(scores)
 length(prop.evals)
 
-
-
-
 pc_df = cbind(features_pca, scores)
+
 # PC plots
 ggplot(pc_df, aes(x=PC1, y = PC2, color = Alignment)) +
   geom_point(size = 3) +
@@ -253,11 +257,41 @@ ggplot(pc_df, aes(x=PC3, y = PC4, color = Alignment)) +
   theme_minimal() + 
   labs(color = "Alignment", x = "PC3", y = "PC4", title = "PCA Plot of Nuclear Geometry")
 
-ggplot(pc_df, aes(x=PC4, y = PC5, color = Alignment)) +
+
+#Optional: Plot by positional bin
+pc_df$Group = as.character(paired_df$avg_bin)
+
+colour_list = c("1" = "#3B99B1", "2" = "#5ba683", "3" = "#b2d162", "4" = "#E9B31F", "5" = "#E78100", "6" = "#F5191C")
+
+ggplot(pc_df, aes(x=PC1, y = PC2, color = Group)) +
   geom_point(size = 3) +
-  scale_color_gradient(low = "yellow", high = "red") +
+  scale_color_manual(values = colour_list) +
   theme_minimal() + 
-  labs(color = "Alignment", x = "PC4", y = "PC5", title = "PCA Plot of Nuclear Geometry")
+  labs(color = "ML Position", x = "PC1", y = "PC2", title = "PCA Plot of Nuclear Geometry")
+
+ggplot(pc_df, aes(x=PC2, y = PC3, color = Group)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = colour_list) +
+  theme_minimal() + 
+  labs(color = "ML Position", x = "PC2", y = "PC3", title = "PCA Plot of Nuclear Geometry")
+
+ggplot(pc_df, aes(x=PC3, y = PC4, color = Group)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = colour_list) +
+  theme_minimal() + 
+  labs(color = "ML Position", x = "PC3", y = "PC4", title = "PCA Plot of Nuclear Geometry")
+
+
+# Looks like variance might be different- use Levene's test to evaluate. We'll try BoxM test after
+pc_df$Group = as.factor(pc_df$Group)
+leveneTest(PC4 ~ Group, data = pc_df)
+
+#Variances are different between PCs 1 and 4 after Bonferroni Correction
+
+
+
+
+
 
 ###### Orientation of nuclei vs division
 cor(paired_df$SpindlePole_AreaShape_Orientation, paired_df$NucShape_AreaShape_Orientation)
@@ -273,3 +307,31 @@ angle_diff = conversion.circular(angle_diff, modulo = "asis", units = "degrees")
 ggplot(paired_df, aes(x=Alignment)) + geom_histogram()
 
 ctest = cor(feature_subset$Alignment, feature_subset$NucShape_AreaShape_Eccentricity)
+
+
+
+
+
+
+######## Alignment across the mediolateral axis
+
+# Add a binwise mean to the dataframe
+paired_df = paired_df %>%
+ group_by(avg_bin) %>%
+ mutate(BinMeanAngle = (mean.circular(SpindlePole_AreaShape_Orientation*2)/2)) %>%
+ ungroup()
+# To make the graph a little more readable, slicewise mean alignment
+paired_df = paired_df %>%
+  group_by(SpindlePole_Location_Center_Z) %>%
+  mutate(SliceMeanAlignment = (mean(Alignment))) %>%
+  ungroup()
+# We will still use individual alignment measures to create a ribbon
+
+# Alignment vs Z position
+
+ggplot(paired_df, aes(x=avg_bin, y = Alignment)) +
+  geom_point(size = 3) +
+  theme_minimal() + 
+  labs(x = "Mediolateral Position", y = "Alignment", title = "Mitotic alignment across the left mandible")
+ 
+

@@ -11,8 +11,8 @@ fullpath <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 filepath <- paste(fullpath,"Data", sep="/")
 all_samples <- list.files(path=filepath, pattern = "*.csv", full.names=TRUE)
 #Select your sample
-spindles = read.csv(all_samples[1])
-
+spindles = read.csv(paste(filepath,"Orientation_SpindlePole_A2.csv", sep="/"))
+#spindles = filter(spindles, AreaShape_Center_X > 1824)
 ###Subset sample by position along the vertical axis###
 # Split df by position along z axis
 spindle_z = split(spindles, spindles$FileName)
@@ -39,10 +39,10 @@ for(i in 1:length(spindle_regions)){
   spindleOrientationA = circular(region_spindles$AreaShape_Orientation,type = "angles", units = "degrees",zero = pi/2)
   spindleOrientationB = circular(region_spindles$AreaShape_Orientation + 180,type = "angles", units = "degrees",zero = pi/2)
   spindleOrientation = c(spindleOrientationA,spindleOrientationB)
-  rose.diag(spindleOrientation, pch = 13, cex = 1, axes = TRUE, shrink = 1, bins = 24,
-            col = colour_list[i], border = "grey5", radii.scale = "linear", prop = 11.5, tol = 0.02, tcl.text = -0.1, add=FALSE)
+  rose.diag(spindleOrientation, pch = 13, cex = 1, axes = TRUE, shrink = 1.2, bins = 24,
+            col = colour_list[i], border = "grey5", radii.scale = "linear", prop = 10, tol = 0.02, tcl.text = -0.2, add=FALSE)
   # test for significance
   print(i)
   print(kuiper.test(x=spindleOrientation))
 }
-
+ 

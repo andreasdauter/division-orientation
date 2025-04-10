@@ -1,17 +1,20 @@
 library(ggplot2)
 library(plyr)
+library(dplyr)
 library(readr)
 library(circular)
 
 #set directory path and load in data
 fullpath <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
-filepath <- paste(fullpath,"Data", sep="/")
-all_samples <- list.files(path=filepath, pattern = "*.csv", full.names=TRUE)
+filepath <- paste(fullpath,"Data", "Sofia", sep="/")
 
-spindles = read.csv(all_samples[1])
+spindles = read.csv(paste(filepath,"Orientation_SpindlePole.csv", sep="/"))
+
+#Optional:Subset to left side
 
 
-
+spindles_left = filter(spindles, AreaShape_Center_X > 1824)
+spindles = spindles_left
 # Make orientation data circular                                        
 spindleOrientationA = circular(spindles$AreaShape_Orientation,type = "angles", units = "degrees",zero = pi/2)
 spindleOrientationB = circular(spindles$AreaShape_Orientation + 180,type = "angles", units = "degrees",zero = pi/2)
