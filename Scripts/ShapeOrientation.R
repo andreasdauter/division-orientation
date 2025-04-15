@@ -2,34 +2,47 @@
 
 # Libraries
 library(Morpho)
-library(ggplot)
+library(ggplot2)
 library(geomorph)
 library(tiff)
 library(EBImage)
 library(readr)
 library(shapes)
-library(shapes)
 
 # Load in data
 fullpath = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 filepath = paste(fullpath,"Data", sep="/")
-tiff_path = paste(filepath,"Volumes", sep="/")
+e10_tiff_path = paste(filepath,"Volumes", "e10", sep="/")
+e105_tiff_path = paste(filepath,"Volumes", "e10_5", sep="/")
 lm_path = paste(filepath,"Landmarks", sep="/")
 
-# List all TIFF files
-tiff_files = list.files(tiff_path, pattern = "\\.tiff", full.names = TRUE)
-
+# List all TIFF files for both ages
+e10_tiff_files = list.files(e10_tiff_path, pattern = "\\.tiff", full.names = TRUE)
+e105_tiff_files = list.files(e105_tiff_path, pattern = "\\.tiff", full.names = TRUE)
 # Load TIFF volumes into a list
-volumes_list = lapply(tiff_files, function(file) {
+e10_volumes_list = lapply(e10_tiff_files, function(file) {
+  readImage(file)  # Reads TIFF as a 3D array (x, y, z)
+})
+e105_volumes_list = lapply(e105_tiff_files, function(file) {
   readImage(file)  # Reads TIFF as a 3D array (x, y, z)
 })
 ## This will be used for visualization later
 
 # Load Landmarks
 # List all landmark files
-landmark_files = list.files(lm_path, pattern = "\\.csv", full.names = TRUE)
-sample_names = list.files(lm_path, pattern = "\\.csv", full.names = FALSE)
+# landmark_files = list.files(lm_path, pattern = "\\.csv", full.names = TRUE)
+sample_names = list.files(lm_path, pattern = "\\.csv", full.names = FALSE, recursive = TRUE)
 landmark_data = lapply(landmark_files, read_csv)
+
+
+lm_df = data.frame(
+  file_name = basename(sample_names),
+  age = dirname(sample_names),
+  stringsAsFactors = TRUE
+)
+
+
+
 
 
 # Convert CSVs to LM arrays
@@ -70,6 +83,7 @@ gpa_sym = procSym(landmark_array, paired = paired_LMs)
 # Retrieve coordinates and subset into two groups by age
 proc_coords = gpa_sym$rotated
 # Subsetting legend
+
 # Create shape avg for two groups separately from mu
 
 # Ordinary Procrustes Analysis with procOPA on each sample to the mean. procOPA$R stores the rotations matrix
