@@ -28,29 +28,34 @@ e105_volumes_list = lapply(e105_tiff_files, function(file) {
 })
 ## This will be used for visualization later
 
-# Load Landmarks
-# List all landmark files
-# landmark_files = list.files(lm_path, pattern = "\\.csv", full.names = TRUE)
+# Load Landmarks in one dataframe
 sample_names = list.files(lm_path, pattern = "\\.csv", full.names = FALSE, recursive = TRUE)
-landmark_data = lapply(landmark_files, read_csv)
-
 
 lm_df = data.frame(
   file_name = basename(sample_names),
   age = dirname(sample_names),
-  stringsAsFactors = TRUE
+  stringsAsFactors = FALSE
 )
+# Subset by age and store coordinates
+lms_e10 = subset(lm_df, age == "e10")
+lms_e10$file_name = paste0(lm_path, "/e10/", lms_e10$file_name)
+lms_e10_data = lapply(lms_e10$file_name, read_csv)
 
-
-
-
+lms_e105 = subset(lm_df, age == "e10_5")
+lms_e105$file_name = paste0(lm_path, "/e10_5/", lms_e105$file_name)
+lms_e105_data = lapply(lms_e105$file_name, read_csv)
 
 # Convert CSVs to LM arrays
-landmark_array = array(NA, dim = c(nrow(landmark_data[[1]]), 3, length(landmark_data)))
+lm_e10_array = array(NA, dim = c(nrow(lms_e10_data[[1]]), 3, length(lms_e10_data)))
+lm_e105_array = array(NA, dim = c(nrow(lms_e105_data[[1]]), 3, length(lms_e105_data)))
 
 # Fill the array
-for (i in 1:length(landmark_data)) {
-  landmark_array[, , i] = as.matrix(landmark_data[[i]][, 1:3])  # Assuming columns 1 & 2 are x and y
+for (i in 1:length(lm_e10_array)) {
+  lm_e10_array[, , i] = as.matrix(lms_e10_data[[i]][, 1:3])
+}
+
+for (i in 1:length(lm_e105_array)) {
+  lm_e105_array[, , i] = as.matrix(lms_e105_data[[i]][, 1:3])
 }
 
 # Define vector of midline LMs
@@ -76,21 +81,34 @@ paired_LMs = matrix(c(
   22, 29
 ), ncol = 2, byrow = TRUE)
 # Run GPA on all samples, paired, with ProcSym
-gpa_sym = procSym(landmark_array, paired = paired_LMs)
-
+gpa_e10 = procSym(lm_e10_array, paired = paired_LMs)
+gpa_e105 = procSym(lm_e105_array, paired = paired_LMs)
 
 
 # Retrieve coordinates and subset into two groups by age
-proc_coords = gpa_sym$rotated
-# Subsetting legend
+proc_coords = gpa_e10$rotated
 
-# Create shape avg for two groups separately from mu
+# Create shape avg for two groups separately
+mean_e10 = gpa_e10$mshape
 
 # Ordinary Procrustes Analysis with procOPA on each sample to the mean. procOPA$R stores the rotations matrix
 
+# Set up array to hold rotation matrices
+nsamples = dim(lm_e10_array)[3]
+OPA_Rotations = array(NA, dim = c(3, 3, nsamples))
 
+# Perform an Ordinary procrustes analysis between the mean sample (mean_e10) and each individual sample (page of the array)
+# and store the 3x3 rotation matrix from the sample to the mean in the corresponding page of OPA_Rotations 
+for (i in 1:nsamples) {
+  OPA_result = procOPA(mean_e10, lm_e10_array[, , i])
+  OPA_Rotations[,,i] = OPA_result$R
+}
+
+#TODO: 
 
 
 # Testing
 
-
+test_OPA = procOPA(mean_e10, lm_e10_array[, , 1])
+test_rotations = test_OPA$R
+dim(test_rotations)
