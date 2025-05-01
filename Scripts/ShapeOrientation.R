@@ -8,7 +8,25 @@ library(tiff)
 library(EBImage)
 library(readr)
 library(shapes)
+library(circular)
+library(bpnreg)
+library(Directional)
+library(rgl)
 
+# A few helper functions
+deg_to_rad <- function(deg) {
+  return(deg * pi / 180)
+}
+plot_3d_LMs <- function(LMs, color) {
+  # this will plot the landmarks in the specifid color
+  # need to already have a rgl window open
+  rgl::plot3d(LMs[,,1], aspect = "iso", type = "s", size=.5, col = color, add = T)
+  rgl::text3d(x = LMs[,1,1],
+              y = LMs[,2,1],
+              z = LMs[,3,1],
+              texts = c(1:dim(LMs)[1]),
+              cex = 1.5, offset = 0.5, pos = 1)
+}
 # Load in data
 fullpath = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 filepath = paste(fullpath,"Data", sep="/")
@@ -104,8 +122,44 @@ for (i in 1:nsamples) {
   OPA_Rotations[,,i] = OPA_result$R
 }
 
-#TODO: 
 
+
+#### PART 3 ####
+##Transformation of angles into a common 3D space
+# A note: Each rotation matrix is a composite of rotations in all three axes from each sample to the mean. The order matters. these were applied in ZXY order, which is standard.
+# However, this means the angle vector can be constructed from the simple cos and sin for x and y, without needing to decompose it further. z is always 0 for in-plane annotations
+# We will construct a unit vector for each angle, and transform that according to the rotation matrix.
+# Note that this ONLY transforms the angle- not the coordinate. That needs to be done separately (TODO)
+
+# Load in angles and convert to circular data
+paired_df = read.csv(paste(filepath,"paired_geometry_orientation.csv", sep="/"))
+paired_df$SpindleAngle = as.circular(paired_df$SpindleAngle, units = "degrees", type = "angles")
+# Convert angles from degrees to radians
+angles_degrees = circular(paired_df$SpindleAngle, units = "degrees")
+angles_radians = conversion.circular(angles_degrees, units = "radians")
+# Construct unit vector from each angle
+test_angle = -0.551
+test_vector = vector(length = 3)
+test_vector[1] = cos(test_angle)
+test_vector[2] = sin(test_angle)
+test_vector[3] = 0
+
+
+transformed_test_vector = test_vector %*% OPA_Rotations[,,1]
+# These are the x, y, and z components of each unit vector. This is now a 3D angle, but it can be projected into each axis with these values. This negates the need to have images in a common orientation.
+
+#A test for tomorrow- take a few sample angles, rotate them along with a landmark set, and plot it all.
+#Then, wrap the vector construction in a function and apply it to all our angles. Append these to our main DF.
+open3d(zoom = 0.75, windowRect = c(0, 0, 700, 700)) 
+# plot the decimated head mesh
+rgl::shade3d(head_mesh_spec1_dec, color = "gray", alpha =0.9)
+# plot the landmarks in blue
+plot_3d_LMs(LMs, 'darkblue')
+
+
+
+
+# TODO: Integrate positional orientation. Need clarification on angle inputs and ROI inputs (probably schedule a short call with Nick)
 
 # Testing
 
