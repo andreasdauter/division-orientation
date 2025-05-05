@@ -13,6 +13,19 @@ library(bpnreg)
 library(Directional)
 library(rgl)
 
+library(Rvcg)
+library(magick)
+library(Evomorph)
+library(vegan)
+library(ggbiplot)
+library(factoextra)
+library(gt)
+library(abind)
+library(stringr)
+library(dplyr)
+library(DescTools)
+library(cowplot)
+
 # A few helper functions
 deg_to_rad <- function(deg) {
   return(deg * pi / 180)
@@ -154,7 +167,7 @@ open3d(zoom = 0.75, windowRect = c(0, 0, 700, 700))
 # plot the decimated head mesh
 rgl::shade3d(head_mesh_spec1_dec, color = "gray", alpha =0.9)
 # plot the landmarks in blue
-plot_3d_LMs(LMs, 'darkblue')
+plot_3d_LMs(lm_e105_array, 'darkblue')
 
 
 
@@ -166,3 +179,7 @@ plot_3d_LMs(LMs, 'darkblue')
 test_OPA = procOPA(mean_e10, lm_e10_array[, , 1])
 test_rotations = test_OPA$R
 dim(test_rotations)
+
+this_sample = proc_coords[,,1]
+this_sample
+dim(this_sample)
