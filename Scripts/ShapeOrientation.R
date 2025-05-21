@@ -81,11 +81,11 @@ lm_e10_array = array(NA, dim = c(nrow(lms_e10_data[[1]]), 3, length(lms_e10_data
 lm_e105_array = array(NA, dim = c(nrow(lms_e105_data[[1]]), 3, length(lms_e105_data)))
 
 # Fill the array
-for (i in 1:length(lm_e10_array)) {
+for (i in 1:dim(lm_e10_array)[3]) {
   lm_e10_array[, , i] = as.matrix(lms_e10_data[[i]][, 1:3])
 }
 
-for (i in 1:length(lm_e105_array)) {
+for (i in 1:dim(lm_e105_array)[3]) {
   lm_e105_array[, , i] = as.matrix(lms_e105_data[[i]][, 1:3])
 }
 
