@@ -8,6 +8,7 @@ library(Directional)
 library(Morpho)
 library(car)
 library(biotools)
+library(ggridges)
 
 # Function to calculate the Euclidean distance
 euclidean_distance = function(coord1, coord2) {
@@ -52,7 +53,7 @@ angle_diff = function(a, b) {
 fullpath = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 filepath = paste(fullpath,"Data", sep="/")
 # Change names of files to load that contain coordinates.
-points1 = read.csv(paste(filepath,"CellGeom_SpindlePole.csv", sep="/"))
+points1 = read.csv(paste(filepath,"Orientation_SpindlePole_A5.csv", sep="/"))
 points2 = read.csv(paste(filepath,"CellGeom_CellShape.csv", sep="/"))
 
 # Convert z-slices to z coordinates
@@ -118,7 +119,7 @@ paired_df$NucShape_AreaShape_Orientation = as.circular(paired_df$NucShape_AreaSh
 # mutate(Alignment = angle_diff(a=SliceMean, b=SpindlePole_AreaShape_Orientation))
 
 # Define number of bins and assign each row a bin ID
-bin_count = 12
+bin_count = 6
 paired_df = paired_df %>%
   mutate(avg_bin = ntile(row_number(paired_df), bin_count)) %>%
   group_by(avg_bin) %>%
@@ -328,10 +329,35 @@ paired_df = paired_df %>%
 # We will still use individual alignment measures to create a ribbon
 
 # Alignment vs Z position
+paired_df$avg_bin = as.factor(paired_df$avg_bin)
+
+#Boxplot
+ggplot(paired_df, aes(x=avg_bin, y=Alignment)) +
+  geom_boxplot(notch=TRUE)
+
+# Joyplot
+ggplot(paired_df, aes(x=Alignment, fill=avg_bin, y = avg_bin)) +
+  geom_density_ridges(scale = 2,alpha = 0.8)+
+  geom_segment(data = mean_alignments, aes(x = mean_alignment, xend = mean_alignment,
+                                            y = as.numeric(avg_bin),
+                                           yend = as.numeric(avg_bin) + 0.5,
+                                           color = avg_bin),
+               inherit.aes = FALSE) +
+  labs(x = "Alignment", y = "Mediolateral Position") +
+  theme_ridges()
+
+mean_alignments <- paired_df %>%
+  group_by(avg_bin) %>%
+  summarize(mean_alignment = mean(Alignment))
 
 ggplot(paired_df, aes(x=avg_bin, y = Alignment)) +
   geom_point(size = 3) +
   theme_minimal() + 
   labs(x = "Mediolateral Position", y = "Alignment", title = "Mitotic alignment across the left mandible")
  
+lapply(split(paired_df, factor(paired_df$avg_bin)), function(x)t.test(paired_df$NucShape_AreaShape_Orientation, paired_df$SpindlePole_AreaShape_Orientation, paired=TRUE))
+t.test(paired_df$NucShape_AreaShape_Orientation, paired_df$SpindlePole_AreaShape_Orientation)
 
+
+# Alignment Plotting
+hist(paired_df$Alignment)
