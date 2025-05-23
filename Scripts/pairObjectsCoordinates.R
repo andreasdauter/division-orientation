@@ -53,7 +53,7 @@ angle_diff = function(a, b) {
 fullpath = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 filepath = paste(fullpath,"Data", sep="/")
 # Change names of files to load that contain coordinates.
-points1 = read.csv(paste(filepath,"Orientation_SpindlePole_A5.csv", sep="/"))
+points1 = read.csv(paste(filepath,"CellGeom_SpindlePole.csv", sep="/"))
 points2 = read.csv(paste(filepath,"CellGeom_CellShape.csv", sep="/"))
 
 # Convert z-slices to z coordinates
@@ -127,9 +127,9 @@ paired_df = paired_df %>%
   ungroup()
 
 # Alignment: The absolute difference between the Bin Mean (SliceMean) and each individual angles
- paired_df = paired_df %>%
+paired_df = paired_df %>%
    rowwise() %>%
-   mutate(Alignment = angle_diff(a=SliceMean, b=SpindlePole_AreaShape_Orientation))
+   mutate(Alignment = angle_diff(a=SliceMean, b=SpindleAngle))
 
 is.circular(paired_df$SpindlePole_AreaShape_Orientation)
 is.circular(paired_df$SliceMean)
@@ -139,7 +139,7 @@ paired_df = paired_df %>%
 
 
  # Save the merged df for later or load it back in
-write.csv(paired_df, paste(filepath,"paired_geometry_orientation_12bin.csv", sep="/"))
+write.csv(paired_df, paste(filepath,"paired_geometry_orientation_aligned.csv", sep="/"))
 
 
 
@@ -333,22 +333,34 @@ paired_df$avg_bin = as.factor(paired_df$avg_bin)
 
 #Boxplot
 ggplot(paired_df, aes(x=avg_bin, y=Alignment)) +
-  geom_boxplot(notch=TRUE)
+  geom_violin(notch=TRUE)
 
 # Joyplot
-ggplot(paired_df, aes(x=Alignment, fill=avg_bin, y = avg_bin)) +
+ggplot(paired_df, aes(x= Alignment, fill=avg_bin, y = avg_bin)) +
   geom_density_ridges(scale = 2,alpha = 0.8)+
   geom_segment(data = mean_alignments, aes(x = mean_alignment, xend = mean_alignment,
-                                            y = as.numeric(avg_bin),
-                                           yend = as.numeric(avg_bin) + 0.5,
-                                           color = avg_bin),
-               inherit.aes = FALSE) +
+                                           y = as.numeric(avg_bin),
+                                          yend = as.numeric(avg_bin) + 1,
+                                          color = avg_bin),
+           inherit.aes = FALSE, linewidth = 2) +
+  scale_fill_manual(values = colour_list) +
+  scale_color_manual(values = colour_list)
   labs(x = "Alignment", y = "Mediolateral Position") +
+  theme_minimal() +
   theme_ridges()
+
+
+  ggplot(paired_df, aes(x=Alignment, fill=avg_bin, y=as.factor(avg_bin))) +
+    geom_density_ridges(scale = 2,alpha = 0.8)+
+    scale_color_manual(values = colour_list) +
+    scale_fill_manual(values = colour_list) +
+    labs(x = "Alignment", y = "Mediolateral Position") +
+    theme_minimal() +
+    theme_ridges()
 
 mean_alignments <- paired_df %>%
   group_by(avg_bin) %>%
-  summarize(mean_alignment = mean(Alignment))
+  summarize(mean_alignment = mode(Alignment))
 
 ggplot(paired_df, aes(x=avg_bin, y = Alignment)) +
   geom_point(size = 3) +
@@ -361,3 +373,9 @@ t.test(paired_df$NucShape_AreaShape_Orientation, paired_df$SpindlePole_AreaShape
 
 # Alignment Plotting
 hist(paired_df$Alignment)
+
+test_df = tibble( x = 1:2, y = 3:4, z = 5:6)
+
+test_df = test_df %>%
+  rowwise() %>%
+  mutate(m = mean(c(x, y, z)))
