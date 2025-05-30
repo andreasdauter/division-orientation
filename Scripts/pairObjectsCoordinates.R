@@ -374,6 +374,9 @@ t.test(paired_df$NucShape_AreaShape_Orientation, paired_df$SpindlePole_AreaShape
 # Alignment Plotting
 hist(paired_df$Alignment)
 
+hist(paired_df$NucShape_AreaShape_Orientation-paired_df$SpindlePole_AreaShape_Orientation)
+
+
 test_df = tibble( x = 1:2, y = 3:4, z = 5:6)
 
 test_df = test_df %>%
