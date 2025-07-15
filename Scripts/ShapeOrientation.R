@@ -31,7 +31,7 @@ deg_to_rad <- function(deg) {
   return(deg * pi / 180)
 }
 plot_3d_LMs <- function(LMs, color) {
-  # this will plot the landmarks in the specifid color
+  # this will plot the landmarks in the specified color
   # need to already have a rgl window open
   rgl::plot3d(LMs[,,1], aspect = "iso", type = "s", size=.5, col = color, add = T)
   rgl::text3d(x = LMs[,1,1],
@@ -142,7 +142,7 @@ for (i in 1:nsamples) {
 # A note: Each rotation matrix is a composite of rotations in all three axes from each sample to the mean. The order matters. these were applied in ZXY order, which is standard.
 # However, this means the angle vector can be constructed from the simple cos and sin for x and y, without needing to decompose it further. z is always 0 for in-plane annotations
 # We will construct a unit vector for each angle, and transform that according to the rotation matrix.
-# Note that this ONLY transforms the angle- not the coordinate. That needs to be done separately (TODO)
+# Note that this ONLY transforms the angle- not the coordinate. That needs to be done separately, right from the OPA (TODO)
 
 # Load in angles and convert to circular data
 paired_df = read.csv(paste(filepath,"paired_geometry_orientation.csv", sep="/"))
@@ -159,6 +159,40 @@ test_vector[3] = 0
 
 
 transformed_test_vector = test_vector %*% OPA_Rotations[,,1]
+angle_coords = #Coordinate list of angles, as an array with the same dimensions
+
+## Transformation of coordinates into the same space
+for (i in 1:dim(lm_e10_array)[3]) {
+  # 1. Get original landmarks
+  lm_raw <- lm_e10_array[, , i]
+  
+  # 2. Get the GPA-transformed landmarks
+  lm_aligned <- gpa_e10$rotated[, , i]
+  
+  # 3. Compute translation: centering
+  centroid <- colMeans(lm_raw)
+  lm_centered <- sweep(lm_raw, 2, centroid, "-")
+  
+  # 4. Compute centroid size
+  cs <- sqrt(sum(lm_centered^2))
+  lm_scaled <- lm_centered / cs
+  
+  # 5. Compute rotation matrix (can maybe change to use OPA method)
+  # Use SVD to align scaled -> aligned
+  svd_result <- svd(t(lm_scaled) %*% lm_aligned)
+  rot_matrix <- svd_result$v %*% t(svd_result$u)
+  
+  # 6. Apply the same transformation to auxiliary points- in this case, coordinates for each angle in the same order
+  aux_raw <- angle_coords[[i]]  # m x 3 matrix
+  
+  # Step-by-step transform:
+  aux_centered <- sweep(aux_raw, 2, centroid, "-")
+  aux_scaled <- aux_centered / cs
+  aux_transformed <- aux_scaled %*% rot_matrix
+  
+  # Store or use aux_transformed
+  transformed_aux[[i]] <- aux_transformed
+}
 # These are the x, y, and z components of each unit vector. This is now a 3D angle, but it can be projected into each axis with these values. This negates the need to have images in a common orientation.
 
 #A test for tomorrow- take a few sample angles, rotate them along with a landmark set, and plot it all.
@@ -172,7 +206,7 @@ plot_3d_LMs(lm_e105_array, 'darkblue')
 
 
 
-# TODO: Integrate positional orientation. Need clarification on angle inputs and ROI inputs (probably schedule a short call with Nick)
+# TODO: Integrate positional orientation. Need clarification on angle inputs and ROI inputs (probably schedule a short call with Nick [I did this and I'm still confused lol])
 
 # Testing
 
