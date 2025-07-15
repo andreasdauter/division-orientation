@@ -146,7 +146,7 @@ write.csv(paired_df, paste(filepath,"paired_geometry_orientation_aligned.csv", s
 
 #####################################
 # If you've already generated a paired DF, you can load it in and start here
-paired_df = read.csv(paste(filepath,"paired_geometry_orientation.csv", sep="/"))
+paired_df = read.csv(paste(filepath,"paired_geometry_orientation_aligned.csv", sep="/"))
 # Convert circular data to the correct data type
 paired_df$SpindlePole_AreaShape_Orientation = as.circular(paired_df$SpindlePole_AreaShape_Orientation, units = "degrees", type = "angles")
 paired_df$NucShape_AreaShape_Orientation = as.circular(paired_df$NucShape_AreaShape_Orientation, units = "degrees", type = "angles")
@@ -202,7 +202,7 @@ paired_df = paired_df[close_distances,]
 ###### What features maximally covary with orientation?
   # Initialize df to record correlations
   feature_correlations = data.frame(variable = character(), correlation = numeric(), p_value = numeric(), stringsAsFactors = FALSE)
-  feature_subset = paired_df %>% select(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MajorAxisLength, NucShape_AreaShape_MinorAxisLength, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter)
+  feature_subset = paired_df %>% dplyr::select(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MajorAxisLength, NucShape_AreaShape_MinorAxisLength, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter)
   # Linear correlations with significance testing per variable
   for (var in names(feature_subset)) {
     cortest = cor.test(feature_subset$Alignment, feature_subset[[var]], method = "spearman")
@@ -211,7 +211,7 @@ paired_df = paired_df[close_distances,]
     
   }
   
-  feature_subset = paired_df %>% select(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MajorAxisLength, NucShape_AreaShape_MinorAxisLength, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter)
+  feature_subset = paired_df %>% dplyr::select(c(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MajorAxisLength, NucShape_AreaShape_MinorAxisLength, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter))
   # Additional Feature: AspectRatio, defined as the ratio between the major and minor axes
   feature_subset = feature_subset %>%
     rowwise() %>%
@@ -223,12 +223,12 @@ correlations2 = feature_correlations
 
 ##### PCA of alignment in feature space
 # Cut out redundant features
-features_pca = feature_subset %>% select(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter, AspectRatio)
-features_pca = feature_subset %>% select(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_Perimeter, AspectRatio)
+features_pca = feature_subset %>% dplyr::select(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter, AspectRatio)
+features_pca = feature_subset %>% dplyr::select(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_Perimeter, AspectRatio)
 # use the correlation matrix rather than the covariance matrix, since the scales are different
 nuc_pca = prcomp(features_pca[,-1], retx = TRUE, scale. = TRUE)
 # Eigenvectors
-evecs = nuc_pca$rotation
+evecs = as.data.frame(nuc_pca$rotation)
 # Eigenvalues
 evals = nuc_pca$sdev^2
 prop.evals <- round(evals/sum(evals),5)*100
@@ -243,8 +243,13 @@ pc_df = cbind(features_pca, scores)
 ggplot(pc_df, aes(x=PC1, y = PC2, color = Alignment)) +
   geom_point(size = 3) +
   scale_color_gradient(low = "yellow", high = "red") +
+  geom_segment(data = evecs*7,
+               aes(x = 0, y = 0, xend = PC1, yend = PC2),
+               linewidth = 1.5,
+               arrow = arrow(length = unit(0.5, "cm")),
+               color = "black") +
   theme_minimal() + 
-  labs(color = "Alignment", x = "PC1", y = "PC2", title = "PCA Plot of Nuclear Geometry")
+  labs(color = "Alignment", x ="PC1 (52.02%)", y = "PC2 (45.24%)", title = "PCA Plot of Nuclear Geometry")
 
 ggplot(pc_df, aes(x=PC2, y = PC3, color = Alignment)) +
   geom_point(size = 3) +
@@ -282,7 +287,35 @@ ggplot(pc_df, aes(x=PC3, y = PC4, color = Group)) +
   theme_minimal() + 
   labs(color = "ML Position", x = "PC3", y = "PC4", title = "PCA Plot of Nuclear Geometry")
 
+evecs12 = as.data.frame(evecs[, 1:2])
+# Biplot version
+ggplot(pc_df, aes(x=PC1, y = PC2, color = Group)) +
+  geom_point(size = 3) +
+  stat_ellipse(level = 0.95, linetype = "dashed", size = 1, alpha = 0.8) +
+  geom_segment(data = evecs*7,
+               aes(x = 0, y = 0, xend = PC1, yend = PC2),
+               linewidth = 1.5,
+               arrow = arrow(length = unit(0.5, "cm")),
+               color = "black") +
+  geom_text(data = evecs*7,
+            aes(x = PC1, y = PC2, label = rownames(evecs)),
+            vjust = 1.5, color = "black") +
+  scale_color_manual(values = colour_list) +
+  theme_minimal() + 
+  labs(color = "ML Position", x = "PC1 (52.02%)", y = "PC2 (45.24%)", title = "PCA Plot of Nuclear Geometry")
 
+ggplot(pc_df, aes(x=PC3, y = PC4, color = Group)) +
+  geom_point(size = 3) +
+  geom_segment(data = evecs*3,
+               aes(x = 0, y = 0, xend = PC3, yend = PC4),
+               arrow = arrow(length = unit(0.3, "cm")),
+               color = "black") +
+  #geom_text(data = evecs*3,
+  #          aes(x = PC3, y = PC4, label = rownames(evecs)),
+  #          vjust = 1.5, color = "black") +
+  scale_color_manual(values = colour_list) +
+  theme_minimal() + 
+  labs(color = "ML Position", x = "PC3", y = "PC4", title = "PCA Plot of Nuclear Geometry")
 # Looks like variance might be different- use Levene's test to evaluate. We'll try BoxM test after
 pc_df$Group = as.factor(pc_df$Group)
 leveneTest(PC4 ~ Group, data = pc_df)
@@ -374,6 +407,20 @@ t.test(paired_df$NucShape_AreaShape_Orientation, paired_df$SpindlePole_AreaShape
 # Alignment Plotting
 hist(paired_df$Alignment)
 
+angle_diffs = as.data.frame(paired_df$NucShape_AreaShape_Orientation-paired_df$SpindlePole_AreaShape_Orientation)
+
+ggplot(angle_diffs, aes(x=x)) + 
+  geom_histogram(fill = "lightblue",
+                 colour = "lightblue3") + 
+  geom_vline(xintercept = mean(angle_diffs$x),
+             color = "darkred",
+             linewidth = 2, linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "",
+       x = "",
+       y = "")
+
+qhist(angle_diffs)
 hist(paired_df$NucShape_AreaShape_Orientation-paired_df$SpindlePole_AreaShape_Orientation)
 
 

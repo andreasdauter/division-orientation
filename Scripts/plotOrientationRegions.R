@@ -8,10 +8,10 @@ library(purrr)
 
 #set directory path and load in data
 fullpath <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
-filepath <- paste(fullpath,"Data", sep="/")
+filepath <- paste(fullpath,"Data", "Kim", sep="/")
 all_samples <- list.files(path=filepath, pattern = "*.csv", full.names=TRUE)
 #Select your sample
-spindles = read.csv(paste(filepath,"Orientation_SpindlePole_A5.csv", sep="/"))
+spindles = read.csv(paste(filepath,"Orientation_SpindlePole.csv", sep="/"))
 #spindles = filter(spindles, AreaShape_Center_X > 1824)
 ###Subset sample by position along the vertical axis###
 # Split df by position along z axis

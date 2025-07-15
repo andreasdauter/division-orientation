@@ -6,7 +6,7 @@ library(circular)
 
 #set directory path and load in data
 fullpath <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
-filepath <- paste(fullpath,"Data", "Sofia", sep="/")
+filepath <- paste(fullpath,"Data", "Kim", sep="/")
 
 spindles = read.csv(paste(filepath,"Orientation_SpindlePole.csv", sep="/"))
 
