@@ -46,6 +46,7 @@ filepath = paste(fullpath,"Data", sep="/")
 e10_tiff_path = paste(filepath,"Volumes", "e10", sep="/")
 e105_tiff_path = paste(filepath,"Volumes", "e10_5", sep="/")
 lm_path = paste(filepath,"Landmarks", sep="/")
+angles_path = paste(filepath,"Angles", "e10", sep="/")
 
 # List all TIFF files for both ages
 e10_tiff_files = list.files(e10_tiff_path, pattern = "\\.tiff", full.names = TRUE)
@@ -144,13 +145,35 @@ for (i in 1:nsamples) {
 # We will construct a unit vector for each angle, and transform that according to the rotation matrix.
 # Note that this ONLY transforms the angle- not the coordinate. That needs to be done separately, right from the OPA (TODO)
 
-# Load in angles and convert to circular data
-paired_df = read.csv(paste(filepath,"paired_geometry_orientation.csv", sep="/"))
-paired_df$SpindleAngle = as.circular(paired_df$SpindleAngle, units = "degrees", type = "angles")
-# Convert angles from degrees to radians
-angles_degrees = circular(paired_df$SpindleAngle, units = "degrees")
-angles_radians = conversion.circular(angles_degrees, units = "radians")
-# Construct unit vector from each angle
+### Load in all angle lists and loop through each to convert angles to vectors and transform based on OPA rotations. Angles are agnostic to scale and translation,
+### So we'll just convert the angles themselves here and reposition them after.
+angle_files = list.files(angles_path, pattern = "\\.csv$", full.names = TRUE)
+all_angles = lapply(angle_files, read.csv)
+# Initialize empty matrix of the correct dimensions.
+
+
+for (i in 1:length(all_angles)){
+  # Load one sample at a time and convert angle data back to circular numeric, in radians.
+  all_angles[[i]]$SpindleAngle = as.circular(all_angles[[i]]$SpindleAngle, units = "degrees", type = "angles")
+  angles_degrees = circular(all_angles[[i]]$SpindleAngle, units = "degrees")
+  angle_radians = conversion.circular(angles_degrees, units = "radians")
+  # Construct unit vector from each angle by adding a few columns on. First is the angle in radians, followed by the unrotated components of each unit vector. This is kinda clean, actually.
+  all_angles[[i]] = all_angles[[i]] %>%
+    rowwise() %>%
+    mutate(
+      angle_radians = conversion.circular(angles_degrees, units = "radians"),
+      avec_raw_x = cos(angle_radians),
+      avec_raw_y = sin(angle_radians),
+      avec_raw_z = 0
+    )
+}
+
+## May need later: directly create vector from angle
+#angle_vector = vector(length = 3)
+#angle_vector[1] = cos(this_angle)
+#angle_vector[2] = sin(this_angle)
+#angle_vector[3] = 0
+# Test code to verify unit vector construction
 test_angle = -0.551
 test_vector = vector(length = 3)
 test_vector[1] = cos(test_angle)
@@ -159,7 +182,7 @@ test_vector[3] = 0
 
 
 transformed_test_vector = test_vector %*% OPA_Rotations[,,1]
-angle_coords = #Coordinate list of angles, as an array with the same dimensions
+angle_coords = #Coordinate list of angles, as an array with the same dimensions (ncells x 3 x nsamples)
 
 ## Transformation of coordinates into the same space
 for (i in 1:dim(lm_e10_array)[3]) {
