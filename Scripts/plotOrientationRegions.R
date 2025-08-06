@@ -67,7 +67,7 @@ spindles$t_split = spindles$t_y
 
 # Reconstruct in-plane angle projections from the 3D unit vector
 # For different planes, remember to set avec_rot_x, avec_rot_y, and avec_rot_z accordingly here.
-spindles$theta =(atan2(spindles$avec_rot_z, spindles$avec_rot_x))
+spindles$theta =(atan2(spindles$avec_rot_x, spindles$avec_rot_z))
 
 # In order to prevent visualization artifacts, we only include projected angles sufficiently close to the 3D angle in spindles_subset
 spindles_subset <- spindles %>%
@@ -96,9 +96,9 @@ divisions = 6
 # Find the minima and maxima of the split coordinate, and identify breakpoints for 6 sections
 breaks = seq(min(spindles_subset$t_split, na.rm = TRUE), max(spindles_subset$t_split, na.rm = TRUE), length.out = divisions + 1)
 # Cut the data into bins
-spindles_subset$z_bin = cut(spindles_subset$t_split, breaks = breaks, include.lowest = TRUE)
+spindles_subset$z_bin = cut(spindles_subset$t_split, breaks = breaks, include.lowest = TRUE, labels = FALSE)
 # Split df by position along z axis
-spindle_regions = split(spindles_subset, spindles$z_bin)
+spindle_regions = split(spindles_subset, spindles_subset$z_bin)
 
 
 #Specify colours to iterate through
@@ -110,6 +110,7 @@ par(mfrow = c(2,3))
 for(i in 1:length(spindle_regions)){
   # select bin
   bin = divisions + 1 - i
+  bin
   # Make orientation data circular in each subset
   spindleOrientationA = circular(spindle_regions[[i]]$theta,type = "angles", units = "radians", zero = pi/2)
   spindleOrientationB = circular(spindle_regions[[i]]$theta + pi,type = "angles", units = "radians", zero = pi/2)
@@ -134,3 +135,4 @@ for(i in 1:length(spindle_regions)){
   rose.diag(angleError, pch = 13, cex = 1, axes = TRUE, shrink = 1.2, bins = 24,
             col = colour_list[bin], border = "grey5", radii.scale = "linear", prop = 10, tol = 0.02, tcl.text = -0.2, add=FALSE)
 }
+is.circular(spindle_regions[[1]]$theta)
