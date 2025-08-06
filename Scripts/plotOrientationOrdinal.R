@@ -8,13 +8,14 @@ library(circular)
 fullpath <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 filepath <- paste(fullpath,"Data", "Kim", sep="/")
 
-spindles = read.csv(paste(filepath,"Orientation_SpindlePole.csv", sep="/"))
+
+spindles = read.csv(paste(filepath,"AurA_June7_A_3_SpindlePole.csv", sep="/"))
 
 #Optional:Subset to left side
 
 
-spindles_left = filter(spindles, AreaShape_Center_X > 1824)
-spindles = spindles_left
+# spindles_left = filter(spindles, AreaShape_Center_X > 1824)
+# spindles = spindles_left
 # Make orientation data circular                                        
 spindleOrientationA = circular(spindles$AreaShape_Orientation,type = "angles", units = "degrees",zero = pi/2)
 spindleOrientationB = circular(spindles$AreaShape_Orientation + 180,type = "angles", units = "degrees",zero = pi/2)
