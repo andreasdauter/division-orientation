@@ -40,13 +40,19 @@ plot_3d_LMs <- function(LMs, color) {
               texts = c(1:dim(LMs)[1]),
               cex = 1.5, offset = 0.5, pos = 1)
 }
+# This is basically a manual point transformation to a whole list in a DF, given a centroid, centroid size, and 3x3 rotation matrix
+transform_point <- function(x, y, z, centroid, cs, R) {
+  vec <- c(x, y, z)
+  vec_centered <- (vec - centroid) / cs
+  as.list(vec_centered %*% R)
+}
 # Load in data
 fullpath = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
-filepath = paste(fullpath,"Data", sep="/")
+filepath = paste(fullpath,"Data", "Kim", sep="/")
 e10_tiff_path = paste(filepath,"Volumes", "e10", sep="/")
 e105_tiff_path = paste(filepath,"Volumes", "e10_5", sep="/")
 lm_path = paste(filepath,"Landmarks", sep="/")
-angles_path = paste(filepath,"Angles", "e10", sep="/")
+angles_path = paste(filepath,"Mandibles", "e10", sep="/")
 
 # List all TIFF files for both ages
 e10_tiff_files = list.files(e10_tiff_path, pattern = "\\.tiff", full.names = TRUE)
@@ -69,8 +75,8 @@ lm_df = data.frame(
   stringsAsFactors = FALSE
 )
 # Subset by age and store coordinates
-lms_e10 = subset(lm_df, age == "e10")
-lms_e10$file_name = paste0(lm_path, "/e10/", lms_e10$file_name)
+lms_e10 = subset(lm_df, age == "E10")
+lms_e10$file_name = paste0(lm_path, "/E10/", lms_e10$file_name)
 lms_e10_data = lapply(lms_e10$file_name, read_csv)
 
 lms_e105 = subset(lm_df, age == "e10_5")
@@ -116,6 +122,8 @@ paired_LMs = matrix(c(
 gpa_e10 = procSym(lm_e10_array, paired = paired_LMs)
 gpa_e105 = procSym(lm_e105_array, paired = paired_LMs)
 
+# If running on mandible alone:
+gpa_e10 = procSym(lm_e10_array)
 
 # Retrieve coordinates and subset into two groups by age
 proc_coords = gpa_e10$rotated
@@ -149,23 +157,54 @@ for (i in 1:nsamples) {
 ### So we'll just convert the angles themselves here and reposition them after.
 angle_files = list.files(angles_path, pattern = "\\.csv$", full.names = TRUE)
 all_angles = lapply(angle_files, read.csv)
-# Initialize empty matrix of the correct dimensions.
+
+#Testing: Realized that the annotations were made on cropped images and therefore coordinate correspondance was lost. Can fix this simply by re-adding the coordinate of the top right pixel to the x and y values. z is unaffected.
+all_angles = all_angles_original
+# Manually defining offsets
+offset_names = c("A1", "A2", "A3")
+x_offset = c(0, 1219, 1453)
+y_offset = c(0, 4072, 1193)
+#z_factor is a correction for a previous plane ratio error
+z_factor = c(3.5, 3.5, 3.5)
+offsets = data.frame(offset_names,x_offset,y_offset,z_factor)
+for (i in seq_along(all_angles)) {
+  all_angles[[i]]$SpindlePole_Location_Center_X <- all_angles[[i]]$SpindlePole_Location_Center_X + offsets$x_offset[i]
+  all_angles[[i]]$SpindlePole_Location_Center_Y <- all_angles[[i]]$SpindlePole_Location_Center_Y + offsets$y_offset[i]
+  all_angles[[i]]$SpindlePole_Location_Center_Z <- all_angles[[i]]$SpindlePole_Location_Center_Z * offsets$z_factor[i]
+}
 
 
-for (i in 1:length(all_angles)){
+for (i in seq_along(all_angles)){
   # Load one sample at a time and convert angle data back to circular numeric, in radians.
+  all_angles[[i]]$SpindleAngle = all_angles[[i]]$SpindlePole_AreaShape_Orientation
   all_angles[[i]]$SpindleAngle = as.circular(all_angles[[i]]$SpindleAngle, units = "degrees", type = "angles")
-  angles_degrees = circular(all_angles[[i]]$SpindleAngle, units = "degrees")
-  angle_radians = conversion.circular(angles_degrees, units = "radians")
+  #angles_degrees = circular(all_angles[[i]]$SpindleAngle, units = "degrees")
+  # angle_radians = conversion.circular(angles_degrees, units = "radians")
   # Construct unit vector from each angle by adding a few columns on. First is the angle in radians, followed by the unrotated components of each unit vector. This is kinda clean, actually.
   all_angles[[i]] = all_angles[[i]] %>%
     rowwise() %>%
     mutate(
-      angle_radians = conversion.circular(angles_degrees, units = "radians"),
+      angle_radians = conversion.circular(SpindlePole_AreaShape_Orientation, units = "radians"),
       avec_raw_x = cos(angle_radians),
       avec_raw_y = sin(angle_radians),
       avec_raw_z = 0
     )
+}
+
+# The all_angles df now has three additional columns that, together, make a unit vector of the original angle. 
+# These just need to be reconstructed and multiplied by the corresponding sample's rotation matrix to get the new angles
+# VERY IMPORTANT that the LMs and angles for the same samples are loaded in the same order.cl
+for (i in 1:length(all_angles)){
+  all_angles[[i]] = all_angles[[i]] %>%
+    rowwise() %>%
+    mutate(
+      vec_rot = list(OPA_Rotations[,,1] %*% c(avec_raw_x, avec_raw_y, avec_raw_z)),
+      avec_rot_x = vec_rot[1],
+      avec_rot_y = vec_rot[2],
+      avec_rot_z = vec_rot[3]
+    ) %>%
+    ungroup() %>%
+    dplyr::select(-vec_rot)
 }
 
 ## May need later: directly create vector from angle
@@ -173,59 +212,49 @@ for (i in 1:length(all_angles)){
 #angle_vector[1] = cos(this_angle)
 #angle_vector[2] = sin(this_angle)
 #angle_vector[3] = 0
-# Test code to verify unit vector construction
-test_angle = -0.551
-test_vector = vector(length = 3)
-test_vector[1] = cos(test_angle)
-test_vector[2] = sin(test_angle)
-test_vector[3] = 0
 
-
-transformed_test_vector = test_vector %*% OPA_Rotations[,,1]
-angle_coords = #Coordinate list of angles, as an array with the same dimensions (ncells x 3 x nsamples)
+ #Coordinate list of angles, as an array with the same dimensions (ncells x 3 x nsamples)
 
 ## Transformation of coordinates into the same space
-for (i in 1:dim(lm_e10_array)[3]) {
+for (i in 1:length(all_angles)){
+  
   # 1. Get original landmarks
   lm_raw <- lm_e10_array[, , i]
   
   # 2. Get the GPA-transformed landmarks
   lm_aligned <- gpa_e10$rotated[, , i]
   
-  # 3. Compute translation: centering
-  centroid <- colMeans(lm_raw)
-  lm_centered <- sweep(lm_raw, 2, centroid, "-")
+  # 3. Get centroid
+  sample_centroid <- colMeans(lm_raw)
+  lm_centered <- sweep(lm_raw, 2, sample_centroid, "-")
   
-  # 4. Compute centroid size
-  cs <- sqrt(sum(lm_centered^2))
-  lm_scaled <- lm_centered / cs
+  # 4. Get centroid size
+  sample_cs <- sqrt(sum(lm_centered^2))
+  lm_scaled <- lm_centered / sample_cs
   
-  # 5. Compute rotation matrix (can maybe change to use OPA method)
-  # Use SVD to align scaled -> aligned
-  svd_result <- svd(t(lm_scaled) %*% lm_aligned)
-  rot_matrix <- svd_result$v %*% t(svd_result$u)
-  
-  # 6. Apply the same transformation to auxiliary points- in this case, coordinates for each angle in the same order
-  aux_raw <- angle_coords[[i]]  # m x 3 matrix
-  
-  # Step-by-step transform:
-  aux_centered <- sweep(aux_raw, 2, centroid, "-")
-  aux_scaled <- aux_centered / cs
-  aux_transformed <- aux_scaled %*% rot_matrix
-  
-  # Store or use aux_transformed
-  transformed_aux[[i]] <- aux_transformed
+  # 6. Transform all points by centroid (translation), centroid size (scaling), and rotation matrix (from OPA)
+  all_angles[[i]] = all_angles[[i]] %>%
+  rowwise() %>%
+  mutate(
+    trans = list(transform_point(x = SpindlePole_Location_Center_X, y = SpindlePole_Location_Center_Y, z = SpindlePole_Location_Center_Z, centroid = sample_centroid, cs = sample_cs, R = OPA_Rotations[,,i])),
+    t_x = trans[[1]],
+    t_y = trans[[2]],
+    t_z = trans[[3]]
+  ) %>%
+    # Remove temporary trans coordinates
+  #select(-trans) %>%
+  ungroup()
 }
-# These are the x, y, and z components of each unit vector. This is now a 3D angle, but it can be projected into each axis with these values. This negates the need to have images in a common orientation.
 
-#A test for tomorrow- take a few sample angles, rotate them along with a landmark set, and plot it all.
-#Then, wrap the vector construction in a function and apply it to all our angles. Append these to our main DF.
+#A test- take a few sample angles, rotate them along with a landmark set, and plot it all.
 open3d(zoom = 0.75, windowRect = c(0, 0, 700, 700)) 
 # plot the decimated head mesh
-rgl::shade3d(head_mesh_spec1_dec, color = "gray", alpha =0.9)
+# rgl::shade3d(head_mesh_spec1_dec, color = "gray", alpha =0.9)
 # plot the landmarks in blue
-plot_3d_LMs(lm_e105_array, 'darkblue')
-
+plot3d(gpa_e10$mshape, type = "s", radius = 0.01, col = "blue", xlab = "X", ylab = "Y", zlab = "Z")
+text3d(gpa_e10$mshape, texts = as.character(1:nrow(gpa_e10$mshape)), adj = c(1, 1), cex = 0.8, col = "black")
+#plot_3d_LMs(lms_e10, 'darkblue')
+close3d()
 
 
 
