@@ -159,13 +159,13 @@ angle_files = list.files(angles_path, pattern = "\\.csv$", full.names = TRUE)
 all_angles = lapply(angle_files, read.csv)
 
 #Testing: Realized that the annotations were made on cropped images and therefore coordinate correspondance was lost. Can fix this simply by re-adding the coordinate of the top right pixel to the x and y values. z is unaffected.
-all_angles = all_angles_original
+all_angles_original = all_angles
 # Manually defining offsets
 offset_names = c("A1", "A2", "A3")
 x_offset = c(0, 1219, 1453)
 y_offset = c(0, 4072, 1193)
 #z_factor is a correction for a previous plane ratio error
-z_factor = c(3.5, 3.5, 3.5)
+z_factor = c(3.5, 1, 1)
 offsets = data.frame(offset_names,x_offset,y_offset,z_factor)
 for (i in seq_along(all_angles)) {
   all_angles[[i]]$SpindlePole_Location_Center_X <- all_angles[[i]]$SpindlePole_Location_Center_X + offsets$x_offset[i]
@@ -184,7 +184,7 @@ for (i in seq_along(all_angles)){
   all_angles[[i]] = all_angles[[i]] %>%
     rowwise() %>%
     mutate(
-      angle_radians = conversion.circular(SpindlePole_AreaShape_Orientation, units = "radians"),
+      angle_radians = conversion.circular(SpindleAngle, units = "radians"),
       avec_raw_x = cos(angle_radians),
       avec_raw_y = sin(angle_radians),
       avec_raw_z = 0
@@ -193,7 +193,7 @@ for (i in seq_along(all_angles)){
 
 # The all_angles df now has three additional columns that, together, make a unit vector of the original angle. 
 # These just need to be reconstructed and multiplied by the corresponding sample's rotation matrix to get the new angles
-# VERY IMPORTANT that the LMs and angles for the same samples are loaded in the same order.cl
+# VERY IMPORTANT that the LMs and angles for the same samples are loaded in the same order.
 for (i in 1:length(all_angles)){
   all_angles[[i]] = all_angles[[i]] %>%
     rowwise() %>%
@@ -257,15 +257,30 @@ text3d(gpa_e10$mshape, texts = as.character(1:nrow(gpa_e10$mshape)), adj = c(1, 
 close3d()
 
 
+#### PART 4 ####
+### Geometric morphometric analysis of shape change and mitotic orientation
+
+## Load in data: mandible landmarks from E10.0 and E10.5 volumes, and meshes from tissue segmentations
+# This analysis uses a reduced 6-landmark scheme for the mandible alone.
+
+
+# Register samples
+
+
+# Propagate surface semilandmarks across the mandible
+
+
+
+# Generate vectors of growth
+
+
+# Plot vectors of growth on average mesh
+
+
+# Based on 3D angle registrations, generate an average mitotic angle at each landmark position and plot (ask david for arrow code?)
+
+
 
 # TODO: Integrate positional orientation. Need clarification on angle inputs and ROI inputs (probably schedule a short call with Nick [I did this and I'm still confused lol])
 
-# Testing
-
-test_OPA = procOPA(mean_e10, lm_e10_array[, , 1])
-test_rotations = test_OPA$R
-dim(test_rotations)
-
-this_sample = proc_coords[,,1]
-this_sample
-dim(this_sample)
+# TODO: 

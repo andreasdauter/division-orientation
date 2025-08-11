@@ -51,20 +51,20 @@ angle_diff = function(a, b) {
 #####
 # Load in both dataframes
 fullpath = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
-filepath = paste(fullpath,"Data", sep="/")
+filepath = paste(fullpath,"Data", "Kim/Mandibles/e10", sep="/")
 # Change names of files to load that contain coordinates.
-points1 = read.csv(paste(filepath,"CellGeom_SpindlePole.csv", sep="/"))
+points1 = read.csv(paste(filepath,"AurA_June7_A_2_LMdP_SpindlePole.csv", sep="/"))
 points2 = read.csv(paste(filepath,"CellGeom_CellShape.csv", sep="/"))
 
 # Convert z-slices to z coordinates
-zscale_factor = 5 #ratio of z-slice thickness to xy pixel size
+zscale_factor = 16.7 #ratio of z-slice thickness to xy pixel size
 
 for (i in 1:nrow(points1)) {
   #Fetch the Z-stack position from the filename. NOTE: this only works for 3-digit slice numbers in the standard zeiss name format. Adjust indices below to change this.
-  z_stack = as.numeric(str_sub(points1$FileName[i], -10, -8))
+  z_stack = as.numeric(str_sub(points1$SpindlePole_FileName[i], -9, -7))
   # Convert into real coordinates and save
   z_coord = z_stack * zscale_factor
-  points1$Location_Center_Z[i] = z_coord
+  points1$SpindlePole_Location_Center_Z[i] = z_coord
 
 }
 # Repeat for second dataframe
@@ -137,9 +137,9 @@ is.circular(paired_df$SliceMean)
 paired_df = paired_df %>%
   mutate(SpindleAngle = SpindlePole_AreaShape_Orientation)
 
-
  # Save the merged df for later or load it back in
-write.csv(paired_df, paste(filepath,"paired_geometry_orientation_aligned.csv", sep="/"))
+paired_df = points1
+write.csv(paired_df, paste(filepath,"AurA_June7_A_2_LMdP_SpindlePole.csv", sep="/"))
 
 
 
