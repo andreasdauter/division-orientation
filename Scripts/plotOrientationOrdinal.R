@@ -4,6 +4,7 @@ library(dplyr)
 library(readr)
 library(circular)
 
+# THIS SCRIPT IS NOW OBSELETE AND HAS BEEN INTEGRATED INTO plotOrientationRegions
 #set directory path and load in data
 fullpath <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 filepath <- paste(fullpath,"Data", "Kim", sep="/")
