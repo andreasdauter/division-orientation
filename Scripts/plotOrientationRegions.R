@@ -8,10 +8,10 @@ library(purrr)
 
 #set directory path and load in data
 fullpath <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
-filepath <- paste(fullpath,"Data", "Kim", sep="/")
+filepath <- paste(fullpath,"Data", "Kim/Mandibles/e10", sep="/")
 all_samples <- list.files(path=filepath, pattern = "*.csv", full.names=TRUE)
 #Select your sample
-spindles = read.csv(paste(filepath,"AurA_June7_A_3_SpindlePole.csv", sep="/"))
+spindles = read.csv(paste(filepath,"AurA_June7_A_3_LMdP_SpindlePole.csv", sep="/"))
 #spindles = filter(spindles, AreaShape_Center_X > 1824)
 ###Subset sample by position along the vertical axis###
 # Split df by position along z axis
@@ -39,8 +39,8 @@ for(i in 1:length(spindle_regions)){
   bin = 7 - i
   # Make orientation data circular in each subset
   region_spindles = Reduce(full_join, Reduce(full_join, spindle_regions[bin]))  
-  spindleOrientationA = circular(region_spindles$SpindleAngle,type = "angles", units = "degrees",zero = pi/2)
-  spindleOrientationB = circular(region_spindles$SpindleAngle + 180,type = "angles", units = "degrees",zero = pi/2)
+  spindleOrientationA = circular(region_spindles$SpindlePole_AreaShape_Orientation,type = "angles", units = "degrees",zero = pi)
+  spindleOrientationB = circular(region_spindles$SpindlePole_AreaShape_Orientation + 180,type = "angles", units = "degrees",zero = pi)
   spindleOrientation = c(spindleOrientationA,spindleOrientationB)
   rose.diag(spindleOrientation, pch = 13, cex = 1, axes = TRUE, shrink = 1.2, bins = 24,
             col = colour_list[bin], border = "grey5", radii.scale = "linear", prop = 10, tol = 0.02, tcl.text = -0.2, add=FALSE)
@@ -49,6 +49,19 @@ for(i in 1:length(spindle_regions)){
   print(kuiper.test(x=spindleOrientation))
 }
  
+### Integrating tissue-wide tests
+par(mfrow = c(1,1))
+spindleOrientationA = circular(spindles$SpindlePole_AreaShape_Orientation,type = "angles", units = "degrees",zero = pi)
+spindleOrientationB = circular(spindles$SpindlePole_AreaShape_Orientation + 180,type = "angles", units = "degrees",zero = pi)
+spindleOrientation = c(spindleOrientationA,spindleOrientationB)
+
+rose.diag(spindleOrientation, pch = 16, cex = 1, axes = TRUE, shrink = 1, bins = 24, tcl=0,
+          col = "cadetblue3", border = "cadetblue", radii.scale = "linear", prop = 14, tol = 0.02, tcl.text = 0.075)
+
+# test for signifcance
+### rayleigh.test(x=spindleOrientationA)###
+kuiper.test(x=spindleOrientation)
+
 
 
 #### ALTERNATE VERSION: Use this block if you are starting with unit vectors in 3D ####
@@ -63,24 +76,28 @@ spindles = bind_rows(all_angles)
 #       transverse: t_split = t_y, theta = XZ planes
 
 # Define which transformed axis to split by: t_x, t_y, or t_z
-spindles$t_split = spindles$t_y
+spindles$t_split = spindles$t_x
 
 # Reconstruct in-plane angle projections from the 3D unit vector
 # For different planes, remember to set avec_rot_x, avec_rot_y, and avec_rot_z accordingly here.
-spindles$theta =(atan2(spindles$avec_rot_x, spindles$avec_rot_z))
+spindles$theta =(atan2(spindles$avec_rot_y, spindles$avec_rot_z))
+# Set these indices such that the split axis is 0 and the others are 1
+z_in = 1
+x_in = 0
+y_in = 1
 
 # In order to prevent visualization artifacts, we only include projected angles sufficiently close to the 3D angle in spindles_subset
 spindles_subset <- spindles %>%
   rowwise() %>%
   mutate(
     # Normalize raw and rotated vectors. NOTE: the only difference between norm_proj and norm_3D is that norm_proj is lacking one term. THIS MUST MATCH THE DIMENSIONS IN THETA.
-    norm_proj = sqrt(avec_rot_x^2 + avec_rot_y^2*0 + avec_rot_z^2),
+    norm_proj = sqrt(avec_rot_x^2*x_in + avec_rot_y^2*y_in + avec_rot_z^2*z_in),
     norm_3D = sqrt(avec_rot_x^2 + avec_rot_y^2 + avec_rot_z^2),
     
     # Compute dot product of normalized vectors
-    dot = (avec_rot_x / norm_proj) * (avec_rot_x / norm_3D) +
-      (avec_raw_y*0 / norm_proj) * (avec_rot_y / norm_3D) +
-      (avec_raw_z / norm_proj) * (avec_rot_z / norm_3D),
+    dot = (avec_rot_x*x_in / norm_proj) * (avec_rot_x / norm_3D) +
+      (avec_raw_y*y_in / norm_proj) * (avec_rot_y / norm_3D) +
+      (avec_raw_z*z_in / norm_proj) * (avec_rot_z / norm_3D),
     
     # Clamp to [-1, 1] to avoid NaNs
     dot = max(min(dot, 1), -1),
@@ -96,7 +113,7 @@ divisions = 6
 # Find the minima and maxima of the split coordinate, and identify breakpoints for 6 sections
 breaks = seq(min(spindles_subset$t_split, na.rm = TRUE), max(spindles_subset$t_split, na.rm = TRUE), length.out = divisions + 1)
 # Cut the data into bins
-spindles_subset$z_bin = cut(spindles_subset$t_split, breaks = breaks, include.lowest = TRUE, labels = FALSE)
+spindles_subset$z_bin = cut(spindles_subset$t_split, breaks = 6, include.lowest = TRUE, labels = FALSE)
 # Split df by position along z axis
 spindle_regions = split(spindles_subset, spindles_subset$z_bin)
 
@@ -110,7 +127,6 @@ par(mfrow = c(2,3))
 for(i in 1:length(spindle_regions)){
   # select bin
   bin = divisions + 1 - i
-  bin
   # Make orientation data circular in each subset
   spindleOrientationA = circular(spindle_regions[[i]]$theta,type = "angles", units = "radians", zero = pi/2)
   spindleOrientationB = circular(spindle_regions[[i]]$theta + pi,type = "angles", units = "radians", zero = pi/2)
