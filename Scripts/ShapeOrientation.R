@@ -40,6 +40,44 @@ plot_3d_LMs <- function(LMs, color) {
               texts = c(1:dim(LMs)[1]),
               cex = 1.5, offset = 0.5, pos = 1)
 }
+
+# helper: read a single landmark .csv. Somewhat resistant to formatting changes.
+read_csv_landmarks <- function(file){
+  df <- read.csv(file, header = TRUE)
+  # try common column names
+  if(all(c("x","y","z") %in% names(df))){
+    return(as.matrix(df[,c("x","y","z")]))
+  } else if(all(c("X","Y","Z") %in% names(df))){
+    return(as.matrix(df[,c("X","Y","Z")]))
+  } else {
+    # last resort: take first three numeric columns
+    nums <- sapply(df, is.numeric)
+    return(as.matrix(df[, which(nums)[1:3] ]))
+  }
+}
+
+# read landmarks and meshes; assume matching names (without extension)
+read_all_landmarks <- function(files){
+  L <- list()
+  for(f in files){
+    pts <- read_csv_landmarks(f)
+    L[[tools::file_path_sans_ext(basename(f))]] <- pts
+  }
+  return(L)
+}
+
+# Build landmark array
+build_landmark_array <- function(Llist){
+  n <- length(Llist)
+  p <- nrow(Llist[[1]])
+  arr <- array(NA, dim = c(p,3,n))
+  i <- 1
+  for(name in names(Llist)){
+    arr[,,i] <- as.matrix(Llist[[name]])
+    i <- i + 1
+  }
+  return(arr)
+}
 # This is basically a manual point transformation to a whole list in a DF, given a centroid, centroid size, and 3x3 rotation matrix
 transform_point <- function(x, y, z, centroid, cs, R) {
   vec <- c(x, y, z)
@@ -262,14 +300,76 @@ close3d()
 
 ## Load in data: mandible landmarks from E10.0 and E10.5 volumes, and meshes from tissue segmentations
 # This analysis uses a reduced 6-landmark scheme for the mandible alone.
+  # ---------------------------
+  # Paths to edit
+  gmpath = paste(fullpath,"Data", "GM", sep="/")
+  landmark_dir_e10 <- paste(gmpath,"Landmarks", "e10", sep="/") # folder with .csv files for e10
+  landmark_dir_e105 <- paste(gmpath,"Landmarks", "e105", sep="/") # folder with .csv files for e105
+  mesh_dir_e10 <- paste(gmpath,"Meshes", "e10", sep="/") # folder with .ply meshes for e10
+  mesh_dir_e105 <- paste(gmpath,"Meshes", "e105", sep="/") # folder with .ply meshes for e105
+  # ---------------------------
+  # list files by group
+  lm_files_e10 <- list.files(landmark_dir_e10, pattern = "\\.csv$", full.names = TRUE)
+  lm_files_e105 <- list.files(landmark_dir_e105, pattern = "\\.csv$", full.names = TRUE)
+  mesh_files_e10 <- list.files(mesh_dir_e10, pattern = "\\.ply$", full.names = TRUE)
+  mesh_files_e105 <- list.files(mesh_dir_e105, pattern = "\\.ply$", full.names = TRUE)
+  
+  
+  # Test for missing files
+  if(length(lm_files_e10) == 0 || length(lm_files_e105) == 0) stop("No e10 or e105 landmark files found in subfolders")
+  
+  # Load landmarks into an array
+  L_e10 <- read_all_landmarks(lm_files_e10)
+  L_e105 <- read_all_landmarks(lm_files_e105)
+  
+  # Load meshes into a list
+  M_e10 <- list()
+  for(m in mesh_files_e10){
+    name <- tools::file_path_sans_ext(basename(m))
+    M_e10[[name]] <- Rvcg::vcgPlyRead(m, updateNormals=TRUE, clean=FALSE)
+  }
+  M_e105 <- list()
+  for(m in mesh_files_e105){
+    name <- tools::file_path_sans_ext(basename(m))
+    M_e105[[name]] <- Rvcg::vcgPlyRead(m, updateNormals=TRUE, clean=FALSE)
+  }
+  
+  
+  # Combine landmarks into one list and check that each landmark set has a mesh
+  L_all <- c(L_e10, L_e105)
+  M_all <- c(M_e10, M_e105)
+  
+  common_names <- intersect(names(L_all), names(M_all))
+  if(length(common_names) < length(L_all)) warning("Some landmarks or meshes do not have matching names; using intersection")
+  
+  
+  # Reorder lists to common names
+  L_all <- L_all[common_names]
+  M_all <- M_all[common_names]
 
-
+  #Build landmark array with all samples
+  land_arr <- build_landmark_array(L_all)
+  
+  
+  # create group vector aligned to columns of land_arr that describes which sample belongs to which age, derived form separated age groups
+  group_vec <- ifelse(names(L_all) %in% names(L_e10), "e10", "e105")
 # Register samples
-
+  # Run GPA
+  gps <- gpagen(land_arr, ProcD = FALSE)
+  
+  # After GPA, compute group mean shapes
+  mean_e10 <- mshape(gps$coords[,,group_vec=="e10"]) # p x 3
+  mean_e105 <- mshape(gps$coords[,,group_vec=="e105"])
+  
+  # Visualize mean shapes, if you want
+  open3d()
+  shade3d(M_e10[[1]], alpha = 0.7) # This currently shows first e10 mesh
+  
+  # TODO: Add 'r/a/s' coordinate support to the ladnarmk loading, since 3dslicer's table export is kind of silly
 
 # Propagate surface semilandmarks across the mandible
 
-
+# Generate shape average for each group separately
 
 # Generate vectors of growth
 
@@ -280,7 +380,6 @@ close3d()
 # Based on 3D angle registrations, generate an average mitotic angle at each landmark position and plot (ask david for arrow code?)
 
 
+#### PART 5 ####
+### Positional Orientation in the MdP
 
-# TODO: Integrate positional orientation. Need clarification on angle inputs and ROI inputs (probably schedule a short call with Nick [I did this and I'm still confused lol])
-
-# TODO: 
