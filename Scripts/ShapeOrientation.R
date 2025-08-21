@@ -41,19 +41,23 @@ plot_3d_LMs <- function(LMs, color) {
               cex = 1.5, offset = 0.5, pos = 1)
 }
 
-# helper: read a single landmark .csv. Somewhat resistant to formatting changes.
+# helper: read a single landmark .csv. Tried to make this resistant to formatting changes
 read_csv_landmarks <- function(file){
   df <- read.csv(file, header = TRUE)
   # try common column names
   if(all(c("x","y","z") %in% names(df))){
-    return(as.matrix(df[,c("x","y","z")]))
+    lma =(as.matrix(df[,c("x","y","z")]))
   } else if(all(c("X","Y","Z") %in% names(df))){
-    return(as.matrix(df[,c("X","Y","Z")]))
+    lma =(as.matrix(df[,c("x","y","z")]))
+  } else if(all(c("r","a","s") %in% names(df))){
+    lma = (as.matrix(df[,c("r","a","s")]))
   } else {
-    # last resort: take first three numeric columns
+    # if no column names are found, take first three numeric columns
     nums <- sapply(df, is.numeric)
-    return(as.matrix(df[, which(nums)[1:3] ]))
+    lma = (as.matrix(df[, which(nums)[1:3] ]))
   }
+  colnames(lma) = c("x","y","z")
+  return(lma)
 }
 
 # read landmarks and meshes; assume matching names (without extension)
@@ -364,8 +368,6 @@ close3d()
   # Visualize mean shapes, if you want
   open3d()
   shade3d(M_e10[[1]], alpha = 0.7) # This currently shows first e10 mesh
-  
-  # TODO: Add 'r/a/s' coordinate support to the ladnarmk loading, since 3dslicer's table export is kind of silly
 
 # Propagate surface semilandmarks across the mandible
 
