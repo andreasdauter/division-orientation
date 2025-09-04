@@ -310,22 +310,27 @@ close3d()
   gmpath = paste(fullpath,"Data", "GM", sep="/")
   landmark_dir_e10 = paste(gmpath,"Landmarks", "e10", sep="/") # folder with .csv files for e10
   landmark_dir_e105 = paste(gmpath,"Landmarks", "e105", sep="/") # folder with .csv files for e105
+  landmark_dir_e11 = paste(gmpath,"Landmarks", "e11", sep="/") # folder with .csv files for e11
   mesh_dir_e10 = paste(gmpath,"Meshes", "e10", sep="/") # folder with .ply meshes for e10
   mesh_dir_e105 = paste(gmpath,"Meshes", "e105", sep="/") # folder with .ply meshes for e105
+  mesh_dir_e11 = paste(gmpath,"Meshes", "e11", sep="/") # folder with .ply meshes for e105
   # ---------------------------
   # list files by group
   lm_files_e10 = list.files(landmark_dir_e10, pattern = "\\.csv$", full.names = TRUE)
   lm_files_e105 = list.files(landmark_dir_e105, pattern = "\\.csv$", full.names = TRUE)
+  lm_files_e11 = list.files(landmark_dir_e11, pattern = "\\.csv$", full.names = TRUE)
   mesh_files_e10 = list.files(mesh_dir_e10, pattern = "\\.ply$", full.names = TRUE)
   mesh_files_e105 = list.files(mesh_dir_e105, pattern = "\\.ply$", full.names = TRUE)
+  mesh_files_e11 = list.files(mesh_dir_e11, pattern = "\\.ply$", full.names = TRUE)
   
   
   # Test for missing files
-  if(length(lm_files_e10) == 0 || length(lm_files_e105) == 0) stop("No e10 or e105 landmark files found in subfolders")
+  if(length(lm_files_e10) == 0 || length(lm_files_e105) == 0 || length(lm_files_e11) == 0) stop("At least one age point is empty")
   
   # Load landmarks into an array
   L_e10 = read_all_landmarks(lm_files_e10)
   L_e105 = read_all_landmarks(lm_files_e105)
+  L_e11 = read_all_landmarks(lm_files_e11)
   
   # Load meshes into a list
   M_e10 = list()
@@ -338,17 +343,22 @@ close3d()
     name = tools::file_path_sans_ext(basename(m))
     M_e105[[name]] = Rvcg::vcgPlyRead(m, updateNormals=TRUE, clean=FALSE)
   }
+  M_e11 = list()
+  for(m in mesh_files_e11){
+    name = tools::file_path_sans_ext(basename(m))
+    M_e105[[name]] = Rvcg::vcgPlyRead(m, updateNormals=TRUE, clean=FALSE)
+  }
   
   
   # Combine landmarks into one list and check that each landmark set has a mesh
-  L_all = c(L_e10, L_e105)
-  M_all = c(M_e10, M_e105)
+  L_all = c(L_e10, L_e105, L_e11)
+  M_all = c(M_e10, M_e105, M_e11)
   
   common_names = intersect(names(L_all), names(M_all))
   if(length(common_names) < length(L_all)) warning("Some landmarks or meshes do not have matching names; using intersection")
   
   
-  # Reorder lists to common names
+  # Exclude any nonintersecting samples
   L_all = L_all[common_names]
   M_all = M_all[common_names]
 
@@ -357,7 +367,9 @@ close3d()
   
   
   # create group vector aligned to columns of land_arr that describes which sample belongs to which age, derived from separated age groups
-  group_vec = ifelse(names(L_all) %in% names(L_e10), "e10", "e105")
+  group_vec = ifelse(names(L_all) %in% names(L_e10), "e10",
+                     ifelse(names(L_all) %in% names(L_e105), "e105",
+                            ifelse(names(L_all) %in% names(L_e11), "e11", "NA")))
 # Register samples
   # Run GPA
   gps = gpagen(land_arr, ProcD = FALSE)
@@ -365,10 +377,11 @@ close3d()
   # After GPA, compute group mean shapes for each group seperately
   mean_e10 = mshape(gps$coords[,,group_vec=="e10"]) # p x 3
   mean_e105 = mshape(gps$coords[,,group_vec=="e105"])
+  mean_e11 = mshape(gps$coords[,,group_vec=="e105"])
   
   # Visualize mean shapes, if you want
   open3d()
-  shade3d(M_e10[[1]], alpha = 0.7) # This currently shows first e10 mesh
+  shade3d(M_e10[[1]], alpha = 0.7, color = "white") # This currently shows first e10 mesh
   # Plot e10 landmarks
   plot3d(mean_e10, size = 1, add=TRUE)
 
@@ -384,6 +397,16 @@ close3d()
   for(i in 1:nrow(mean_e10)){
     start <- mean_e10[i,]
     end <- mean_e10[i,] + growth_vecs[i,]*gvec_scale_factor
+    segments3d(rbind(start, end), col="blue")
+  }
+# Repeat for e105-e11
+  # Draw arrows from e10 mean to e105 mean
+  growth_vecs <- mean_e11 - mean_e105
+  gvec_scale_factor <- 10
+  #gvec_scale_factor <- 0.1 * max(dist(mean_e10)) 
+  for(i in 1:nrow(mean_e105)){
+    start <- mean_e105[i,]
+    end <- mean_e105[i,] + growth_vecs[i,]*gvec_scale_factor
     segments3d(rbind(start, end), col="blue")
   }
 
