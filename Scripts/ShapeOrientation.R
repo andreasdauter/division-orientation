@@ -25,12 +25,13 @@ library(stringr)
 library(dplyr)
 library(DescTools)
 library(cowplot)
+library(compositions)
 
 # A few helper functions
-deg_to_rad <- function(deg) {
+deg_to_rad = function(deg) {
   return(deg * pi / 180)
 }
-plot_3d_LMs <- function(LMs, color) {
+plot_3d_LMs = function(LMs, color) {
   # this will plot the landmarks in the specified color
   # need to already have a rgl window open
   rgl::plot3d(LMs[,,1], aspect = "iso", type = "s", size=.5, col = color, add = T)
@@ -42,8 +43,8 @@ plot_3d_LMs <- function(LMs, color) {
 }
 
 # helper: read a single landmark .csv. Tried to make this resistant to formatting changes
-read_csv_landmarks <- function(file){
-  df <- read.csv(file, header = TRUE)
+read_csv_landmarks = function(file){
+  df = read.csv(file, header = TRUE)
   # try common column names
   if(all(c("x","y","z") %in% names(df))){
     lma =(as.matrix(df[,c("x","y","z")]))
@@ -53,7 +54,7 @@ read_csv_landmarks <- function(file){
     lma = (as.matrix(df[,c("r","a","s")]))
   } else {
     # if no column names are found, take first three numeric columns
-    nums <- sapply(df, is.numeric)
+    nums = sapply(df, is.numeric)
     lma = (as.matrix(df[, which(nums)[1:3] ]))
   }
   colnames(lma) = c("x","y","z")
@@ -61,31 +62,31 @@ read_csv_landmarks <- function(file){
 }
 
 # read landmarks and meshes; assume matching names (without extension)
-read_all_landmarks <- function(files){
-  L <- list()
+read_all_landmarks = function(files){
+  L = list()
   for(f in files){
-    pts <- read_csv_landmarks(f)
-    L[[tools::file_path_sans_ext(basename(f))]] <- pts
+    pts = read_csv_landmarks(f)
+    L[[tools::file_path_sans_ext(basename(f))]] = pts
   }
   return(L)
 }
 
 # Build landmark array
-build_landmark_array <- function(Llist){
-  n <- length(Llist)
-  p <- nrow(Llist[[1]])
-  arr <- array(NA, dim = c(p,3,n))
-  i <- 1
-  for(name in names(Llist)){
-    arr[,,i] <- as.matrix(Llist[[name]])
-    i <- i + 1
+build_landmark_array = function(LM_list){
+  n = length(LM_list)
+  p = nrow(LM_list[[1]])
+  lm_arr = array(NA, dim = c(p,3,n))
+  for(i in 1:length(LM_list)){
+    lm_arr[,,i] = as.matrix(LM_list[[i]])
+    i = i + 1
   }
-  return(arr)
+  return(lm_arr)
 }
+
 # This is basically a manual point transformation to a whole list in a DF, given a centroid, centroid size, and 3x3 rotation matrix
-transform_point <- function(x, y, z, centroid, cs, R) {
-  vec <- c(x, y, z)
-  vec_centered <- (vec - centroid) / cs
+transform_point = function(x, y, z, centroid, cs, R) {
+  vec = c(x, y, z)
+  vec_centered = (vec - centroid) / cs
   as.list(vec_centered %*% R)
 }
 # Load in data
@@ -210,9 +211,9 @@ y_offset = c(0, 4072, 1193)
 z_factor = c(3.5, 1, 1)
 offsets = data.frame(offset_names,x_offset,y_offset,z_factor)
 for (i in seq_along(all_angles)) {
-  all_angles[[i]]$SpindlePole_Location_Center_X <- all_angles[[i]]$SpindlePole_Location_Center_X + offsets$x_offset[i]
-  all_angles[[i]]$SpindlePole_Location_Center_Y <- all_angles[[i]]$SpindlePole_Location_Center_Y + offsets$y_offset[i]
-  all_angles[[i]]$SpindlePole_Location_Center_Z <- all_angles[[i]]$SpindlePole_Location_Center_Z * offsets$z_factor[i]
+  all_angles[[i]]$SpindlePole_Location_Center_X = all_angles[[i]]$SpindlePole_Location_Center_X + offsets$x_offset[i]
+  all_angles[[i]]$SpindlePole_Location_Center_Y = all_angles[[i]]$SpindlePole_Location_Center_Y + offsets$y_offset[i]
+  all_angles[[i]]$SpindlePole_Location_Center_Z = all_angles[[i]]$SpindlePole_Location_Center_Z * offsets$z_factor[i]
 }
 
 
@@ -261,18 +262,18 @@ for (i in 1:length(all_angles)){
 for (i in 1:length(all_angles)){
   
   # 1. Get original landmarks
-  lm_raw <- lm_e10_array[, , i]
+  lm_raw = lm_e10_array[, , i]
   
   # 2. Get the GPA-transformed landmarks
-  lm_aligned <- gpa_e10$rotated[, , i]
+  lm_aligned = gpa_e10$rotated[, , i]
   
   # 3. Get centroid
-  sample_centroid <- colMeans(lm_raw)
-  lm_centered <- sweep(lm_raw, 2, sample_centroid, "-")
+  sample_centroid = colMeans(lm_raw)
+  lm_centered = sweep(lm_raw, 2, sample_centroid, "-")
   
   # 4. Get centroid size
-  sample_cs <- sqrt(sum(lm_centered^2))
-  lm_scaled <- lm_centered / sample_cs
+  sample_cs = sqrt(sum(lm_centered^2))
+  lm_scaled = lm_centered / sample_cs
   
   # 6. Transform all points by centroid (translation), centroid size (scaling), and rotation matrix (from OPA)
   all_angles[[i]] = all_angles[[i]] %>%
@@ -303,81 +304,88 @@ close3d()
 ### Geometric morphometric analysis of shape change and mitotic orientation
 
 ## Load in data: mandible landmarks from E10.0 and E10.5 volumes, and meshes from tissue segmentations
-# This analysis uses a reduced 6-landmark scheme for the mandible alone.
+# This analysis uses a reduced 7-landmark scheme for the mandible alone.
   # ---------------------------
   # Paths to edit
   gmpath = paste(fullpath,"Data", "GM", sep="/")
-  landmark_dir_e10 <- paste(gmpath,"Landmarks", "e10", sep="/") # folder with .csv files for e10
-  landmark_dir_e105 <- paste(gmpath,"Landmarks", "e105", sep="/") # folder with .csv files for e105
-  mesh_dir_e10 <- paste(gmpath,"Meshes", "e10", sep="/") # folder with .ply meshes for e10
-  mesh_dir_e105 <- paste(gmpath,"Meshes", "e105", sep="/") # folder with .ply meshes for e105
+  landmark_dir_e10 = paste(gmpath,"Landmarks", "e10", sep="/") # folder with .csv files for e10
+  landmark_dir_e105 = paste(gmpath,"Landmarks", "e105", sep="/") # folder with .csv files for e105
+  mesh_dir_e10 = paste(gmpath,"Meshes", "e10", sep="/") # folder with .ply meshes for e10
+  mesh_dir_e105 = paste(gmpath,"Meshes", "e105", sep="/") # folder with .ply meshes for e105
   # ---------------------------
   # list files by group
-  lm_files_e10 <- list.files(landmark_dir_e10, pattern = "\\.csv$", full.names = TRUE)
-  lm_files_e105 <- list.files(landmark_dir_e105, pattern = "\\.csv$", full.names = TRUE)
-  mesh_files_e10 <- list.files(mesh_dir_e10, pattern = "\\.ply$", full.names = TRUE)
-  mesh_files_e105 <- list.files(mesh_dir_e105, pattern = "\\.ply$", full.names = TRUE)
+  lm_files_e10 = list.files(landmark_dir_e10, pattern = "\\.csv$", full.names = TRUE)
+  lm_files_e105 = list.files(landmark_dir_e105, pattern = "\\.csv$", full.names = TRUE)
+  mesh_files_e10 = list.files(mesh_dir_e10, pattern = "\\.ply$", full.names = TRUE)
+  mesh_files_e105 = list.files(mesh_dir_e105, pattern = "\\.ply$", full.names = TRUE)
   
   
   # Test for missing files
   if(length(lm_files_e10) == 0 || length(lm_files_e105) == 0) stop("No e10 or e105 landmark files found in subfolders")
   
   # Load landmarks into an array
-  L_e10 <- read_all_landmarks(lm_files_e10)
-  L_e105 <- read_all_landmarks(lm_files_e105)
+  L_e10 = read_all_landmarks(lm_files_e10)
+  L_e105 = read_all_landmarks(lm_files_e105)
   
   # Load meshes into a list
-  M_e10 <- list()
+  M_e10 = list()
   for(m in mesh_files_e10){
-    name <- tools::file_path_sans_ext(basename(m))
-    M_e10[[name]] <- Rvcg::vcgPlyRead(m, updateNormals=TRUE, clean=FALSE)
+    name = tools::file_path_sans_ext(basename(m))
+    M_e10[[name]] = Rvcg::vcgPlyRead(m, updateNormals=TRUE, clean=FALSE)
   }
-  M_e105 <- list()
+  M_e105 = list()
   for(m in mesh_files_e105){
-    name <- tools::file_path_sans_ext(basename(m))
-    M_e105[[name]] <- Rvcg::vcgPlyRead(m, updateNormals=TRUE, clean=FALSE)
+    name = tools::file_path_sans_ext(basename(m))
+    M_e105[[name]] = Rvcg::vcgPlyRead(m, updateNormals=TRUE, clean=FALSE)
   }
   
   
   # Combine landmarks into one list and check that each landmark set has a mesh
-  L_all <- c(L_e10, L_e105)
-  M_all <- c(M_e10, M_e105)
+  L_all = c(L_e10, L_e105)
+  M_all = c(M_e10, M_e105)
   
-  common_names <- intersect(names(L_all), names(M_all))
+  common_names = intersect(names(L_all), names(M_all))
   if(length(common_names) < length(L_all)) warning("Some landmarks or meshes do not have matching names; using intersection")
   
   
   # Reorder lists to common names
-  L_all <- L_all[common_names]
-  M_all <- M_all[common_names]
+  L_all = L_all[common_names]
+  M_all = M_all[common_names]
 
   #Build landmark array with all samples
-  land_arr <- build_landmark_array(L_all)
+  land_arr = build_landmark_array(L_all)
   
   
-  # create group vector aligned to columns of land_arr that describes which sample belongs to which age, derived form separated age groups
-  group_vec <- ifelse(names(L_all) %in% names(L_e10), "e10", "e105")
+  # create group vector aligned to columns of land_arr that describes which sample belongs to which age, derived from separated age groups
+  group_vec = ifelse(names(L_all) %in% names(L_e10), "e10", "e105")
 # Register samples
   # Run GPA
-  gps <- gpagen(land_arr, ProcD = FALSE)
+  gps = gpagen(land_arr, ProcD = FALSE)
   
-  # After GPA, compute group mean shapes
-  mean_e10 <- mshape(gps$coords[,,group_vec=="e10"]) # p x 3
-  mean_e105 <- mshape(gps$coords[,,group_vec=="e105"])
+  # After GPA, compute group mean shapes for each group seperately
+  mean_e10 = mshape(gps$coords[,,group_vec=="e10"]) # p x 3
+  mean_e105 = mshape(gps$coords[,,group_vec=="e105"])
   
   # Visualize mean shapes, if you want
   open3d()
   shade3d(M_e10[[1]], alpha = 0.7) # This currently shows first e10 mesh
+  # Plot e10 landmarks
+  plot3d(mean_e10, size = 1, add=TRUE)
 
+  #Atlas generation (not really a true atlas, just our best E10.5 morph)
+  
 # Propagate surface semilandmarks across the mandible
 
-# Generate shape average for each group separately
-
-# Generate vectors of growth
-
-
 # Plot vectors of growth on average mesh
-
+  # Draw arrows from e10 mean to e105 mean
+  growth_vecs <- mean_e105 - mean_e10
+  gvec_scale_factor <- 10
+  #gvec_scale_factor <- 0.1 * max(dist(mean_e10)) 
+  for(i in 1:nrow(mean_e10)){
+    start <- mean_e10[i,]
+    end <- mean_e10[i,] + growth_vecs[i,]*gvec_scale_factor
+    segments3d(rbind(start, end), col="blue")
+  }
 
 # Based on 3D angle registrations, generate an average mitotic angle at each landmark position and plot (ask david for arrow code?)
 
