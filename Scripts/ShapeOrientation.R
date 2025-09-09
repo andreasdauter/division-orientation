@@ -336,24 +336,27 @@ close3d()
   M_e10 = list()
   for(m in mesh_files_e10){
     name = tools::file_path_sans_ext(basename(m))
-    M_e10[[name]] = Rvcg::vcgPlyRead(m, updateNormals=TRUE, clean=FALSE)
+    M_e10[[name]] = file2mesh(m, clean=FALSE)
   }
   M_e105 = list()
   for(m in mesh_files_e105){
     name = tools::file_path_sans_ext(basename(m))
-    M_e105[[name]] = Rvcg::vcgPlyRead(m, updateNormals=TRUE, clean=FALSE)
+    M_e105[[name]] = file2mesh(m, clean=FALSE)
   }
   M_e11 = list()
   for(m in mesh_files_e11){
     name = tools::file_path_sans_ext(basename(m))
-    M_e105[[name]] = Rvcg::vcgPlyRead(m, updateNormals=TRUE, clean=FALSE)
+    M_e11[[name]] = file2mesh(m, clean=FALSE)
   }
   
   
   # Combine landmarks into one list and check that each landmark set has a mesh
   L_all = c(L_e10, L_e105, L_e11)
-  M_all = c(M_e10, M_e105, M_e11)
+    
   
+  M_all = c(M_e10, M_e105, M_e11)
+  # NOTE: If using meshes from 3DSlicer, you may need to convert between RAS and LPS:
+  M_all = lapply(M_all, LPS2RAS)
   common_names = intersect(names(L_all), names(M_all))
   if(length(common_names) < length(L_all)) warning("Some landmarks or meshes do not have matching names; using intersection")
   
@@ -377,27 +380,38 @@ close3d()
   # After GPA, compute group mean shapes for each group seperately
   mean_e10 = mshape(gps$coords[,,group_vec=="e10"]) # p x 3
   mean_e105 = mshape(gps$coords[,,group_vec=="e105"])
-  mean_e11 = mshape(gps$coords[,,group_vec=="e105"])
+  mean_e11 = mshape(gps$coords[,,group_vec=="e11"])
+  mean_all = mshape(gps$coords)
   
   # Visualize mean shapes, if you want
   open3d()
-  shade3d(M_e10[[1]], alpha = 0.7, color = "white") # This currently shows first e10 mesh
-  # Plot e10 landmarks
-  plot3d(mean_e10, size = 1, add=TRUE)
+  shade3d(M_all$Dec2_E105_3, alpha = 0.7, color = "grey70", specular = 1) 
+  # Plot sample landmarks
+  plot3d(L_all[[1]], size = 10, col = "red", add=TRUE)
+  # Plot avg landmarks
+  plot3d(mean_e105, size = 3, add=TRUE)
 
   #Atlas generation (not really a true atlas, just our best E10.5 morph)
+  ref_shape = tps3d(M_all$Dec2_E105_3, L_all$Dec2_E105_3, mean_e105)
+  ref_shape2 = tps3d(M_all$Dec2_E105_9, L_all$Dec2_E10_9, mean_e105)
+  e10_mean_shape = tps3d(M_all$Dec2_E105_3, L_all$Dec2_E105_3, mean_e10)
   
+  
+  shade3d(ref_shape, alpha = 0.7, color = "blue", specular = 1)
+  shade3d(ref_shape2, alpha = 0.7, color = "cyan", specular = 1)
+  plot3d(mean_e105, size = 10, col = "red", add=TRUE)
 # Propagate surface semilandmarks across the mandible
 
 # Plot vectors of growth on average mesh
   # Draw arrows from e10 mean to e105 mean
   growth_vecs <- mean_e105 - mean_e10
-  gvec_scale_factor <- 10
+  gvec_scale_factor <- 5
+  shade3d(M_all[[1]], alpha = 0.7, color = "grey70")
   #gvec_scale_factor <- 0.1 * max(dist(mean_e10)) 
   for(i in 1:nrow(mean_e10)){
     start <- mean_e10[i,]
     end <- mean_e10[i,] + growth_vecs[i,]*gvec_scale_factor
-    segments3d(rbind(start, end), col="blue")
+    segments3d(rbind(start, end), col="blue", add = TRUE)
   }
 # Repeat for e105-e11
   # Draw arrows from e10 mean to e105 mean
@@ -415,4 +429,6 @@ close3d()
 
 #### PART 5 ####
 ### Positional Orientation in the MdP
+  
+
 
