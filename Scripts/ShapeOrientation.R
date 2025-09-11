@@ -27,6 +27,8 @@ library(DescTools)
 library(cowplot)
 library(compositions)
 
+source("GitHub/division-orientation/Scripts/heatmapGIF.R")
+
 # A few helper functions
 deg_to_rad = function(deg) {
   return(deg * pi / 180)
@@ -61,6 +63,12 @@ read_csv_landmarks = function(file){
   return(lma)
 }
 
+# Calculate distance between two angles
+angle_between <- function(u, v) {
+  cosang <- sum(u * v) / (sqrt(sum(u^2)) * sqrt(sum(v^2)))
+  acos(pmin(pmax(cosang, -1), 1)) * 180 / pi
+}
+
 # read landmarks and meshes; assume matching names (without extension)
 read_all_landmarks = function(files){
   L = list()
@@ -91,39 +99,39 @@ transform_point = function(x, y, z, centroid, cs, R) {
 }
 # Load in data
 fullpath = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
-filepath = paste(fullpath,"Data", "Kim", sep="/")
-e10_tiff_path = paste(filepath,"Volumes", "e10", sep="/")
-e105_tiff_path = paste(filepath,"Volumes", "e10_5", sep="/")
-lm_path = paste(filepath,"Landmarks", sep="/")
-angles_path = paste(filepath,"Mandibles", "e10", sep="/")
+filepath = paste(fullpath,"Data", sep="/")
+#e10_tiff_path = paste(filepath,"Volumes", "e10", sep="/")
+#e105_tiff_path = paste(filepath,"Volumes", "e10_5", sep="/")
+lm_cell_path = paste(filepath, "GM", "Landmarks", "e105_cell", sep="/")
+angles_path = paste(filepath,"Mandibles", sep="/")
 
 # List all TIFF files for both ages
-e10_tiff_files = list.files(e10_tiff_path, pattern = "\\.tiff", full.names = TRUE)
-e105_tiff_files = list.files(e105_tiff_path, pattern = "\\.tiff", full.names = TRUE)
+#e10_tiff_files = list.files(e10_tiff_path, pattern = "\\.tiff", full.names = TRUE)
+#e105_tiff_files = list.files(e105_tiff_path, pattern = "\\.tiff", full.names = TRUE)
 # Load TIFF volumes into a list
-e10_volumes_list = lapply(e10_tiff_files, function(file) {
-  readImage(file)  # Reads TIFF as a 3D array (x, y, z)
-})
-e105_volumes_list = lapply(e105_tiff_files, function(file) {
-  readImage(file)  # Reads TIFF as a 3D array (x, y, z)
-})
+#e10_volumes_list = lapply(e10_tiff_files, function(file) {
+#  readImage(file)  # Reads TIFF as a 3D array (x, y, z)
+#})
+#e105_volumes_list = lapply(e105_tiff_files, function(file) {
+#  readImage(file)  # Reads TIFF as a 3D array (x, y, z)
+#})
 ## This will be used for visualization later
 
 # Load Landmarks in one dataframe
-sample_names = list.files(lm_path, pattern = "\\.csv", full.names = FALSE, recursive = TRUE)
+sample_names = list.files(lm_cell_path, pattern = "\\.csv", full.names = FALSE, recursive = TRUE)
 
 lm_df = data.frame(
   file_name = basename(sample_names),
-  age = dirname(sample_names),
+  age = "e105",
   stringsAsFactors = FALSE
 )
 # Subset by age and store coordinates
 lms_e10 = subset(lm_df, age == "E10")
-lms_e10$file_name = paste0(lm_path, "/E10/", lms_e10$file_name)
+lms_e10$file_name = paste0(lm_cell_path, "/E10/", lms_e10$file_name)
 lms_e10_data = lapply(lms_e10$file_name, read_csv)
 
-lms_e105 = subset(lm_df, age == "e10_5")
-lms_e105$file_name = paste0(lm_path, "/e10_5/", lms_e105$file_name)
+lms_e105 = subset(lm_df, age == "e105")
+lms_e105$file_name = paste0(lm_cell_path, lms_e105$file_name)
 lms_e105_data = lapply(lms_e105$file_name, read_csv)
 
 # Convert CSVs to LM arrays
@@ -310,18 +318,24 @@ close3d()
   gmpath = paste(fullpath,"Data", "GM", sep="/")
   landmark_dir_e10 = paste(gmpath,"Landmarks", "e10", sep="/") # folder with .csv files for e10
   landmark_dir_e105 = paste(gmpath,"Landmarks", "e105", sep="/") # folder with .csv files for e105
+  landmark_dir_cell = paste(gmpath,"Landmarks", "e105_cell", sep="/") # folder with .csv files for e105 samples with cell data
   landmark_dir_e11 = paste(gmpath,"Landmarks", "e11", sep="/") # folder with .csv files for e11
+  landmark_dir_atlas = paste(gmpath,"Landmarks", "atlas", sep="/") # folder with .csv files for atlases by age
   mesh_dir_e10 = paste(gmpath,"Meshes", "e10", sep="/") # folder with .ply meshes for e10
   mesh_dir_e105 = paste(gmpath,"Meshes", "e105", sep="/") # folder with .ply meshes for e105
   mesh_dir_e11 = paste(gmpath,"Meshes", "e11", sep="/") # folder with .ply meshes for e105
+  mesh_dir_atlas = paste(gmpath,"Meshes", "atlas", sep="/") # folder with .ply meshes for atlases by age
   # ---------------------------
   # list files by group
   lm_files_e10 = list.files(landmark_dir_e10, pattern = "\\.csv$", full.names = TRUE)
   lm_files_e105 = list.files(landmark_dir_e105, pattern = "\\.csv$", full.names = TRUE)
   lm_files_e11 = list.files(landmark_dir_e11, pattern = "\\.csv$", full.names = TRUE)
+  lm_files_cell = list.files(landmark_dir_cell, pattern = "\\.csv$", full.names = TRUE)
+  lm_files_atlas = list.files(landmark_dir_atlas, pattern = "\\.csv$", full.names = TRUE)
   mesh_files_e10 = list.files(mesh_dir_e10, pattern = "\\.ply$", full.names = TRUE)
   mesh_files_e105 = list.files(mesh_dir_e105, pattern = "\\.ply$", full.names = TRUE)
   mesh_files_e11 = list.files(mesh_dir_e11, pattern = "\\.ply$", full.names = TRUE)
+  mesh_files_atlas = list.files(mesh_dir_atlas, pattern = "\\.ply$", full.names = TRUE)
   
   
   # Test for missing files
@@ -331,6 +345,8 @@ close3d()
   L_e10 = read_all_landmarks(lm_files_e10)
   L_e105 = read_all_landmarks(lm_files_e105)
   L_e11 = read_all_landmarks(lm_files_e11)
+  L_cell = read_all_landmarks(lm_files_cell)
+  L_atlas = read_all_landmarks(lm_files_atlas)
   
   # Load meshes into a list
   M_e10 = list()
@@ -348,65 +364,75 @@ close3d()
     name = tools::file_path_sans_ext(basename(m))
     M_e11[[name]] = file2mesh(m, clean=FALSE)
   }
+  M_atlas= list()
+  for(m in mesh_files_atlas){
+    name = tools::file_path_sans_ext(basename(m))
+    M_atlas[[name]] = file2mesh(m, clean=FALSE)
+  }
   
   
   # Combine landmarks into one list and check that each landmark set has a mesh
-  L_all = c(L_e10, L_e105, L_e11)
+  L_shape = c(L_e10, L_e105, L_e11)
     
   
   M_all = c(M_e10, M_e105, M_e11)
   # NOTE: If using meshes from 3DSlicer, you may need to convert between RAS and LPS:
   M_all = lapply(M_all, LPS2RAS)
   common_names = intersect(names(L_all), names(M_all))
-  if(length(common_names) < length(L_all)) warning("Some landmarks or meshes do not have matching names; using intersection")
+  #if(length(common_names) < length(L_all)) warning("Some landmarks or meshes do not have matching names; using intersection")
   
   
   # Exclude any nonintersecting samples
-  L_all = L_all[common_names]
+  L_shape = L_shape[common_names]
   M_all = M_all[common_names]
-
+  # Now we can add landmarks for the cell sets and atlases with them
+  L_all = c(L_shape, L_cell)
   #Build landmark array with all samples
-  land_arr = build_landmark_array(L_all)
+
   
   
   # create group vector aligned to columns of land_arr that describes which sample belongs to which age, derived from separated age groups
   group_vec = ifelse(names(L_all) %in% names(L_e10), "e10",
                      ifelse(names(L_all) %in% names(L_e105), "e105",
-                            ifelse(names(L_all) %in% names(L_e11), "e11", "NA")))
+                            ifelse(names(L_all) %in% names(L_e11), "e11", 
+                                   ifelse(names(L_all) %in% names(L_cell), "cell",
+                                          ifelse(names(L_all) %in% names(L_atlas), "atlas", "NA")))))
 # Register samples
   # Run GPA
   gps = gpagen(land_arr, ProcD = FALSE)
   
   # After GPA, compute group mean shapes for each group seperately
-  mean_e10 = mshape(gps$coords[,,group_vec=="e10"]) # p x 3
-  mean_e105 = mshape(gps$coords[,,group_vec=="e105"])
-  mean_e11 = mshape(gps$coords[,,group_vec=="e11"])
+  mean_e10 = mshape(gps$coords[,,which(group_vec=="e10")]) # p x 3
+  mean_e105 = mshape(gps$coords[,,which(group_vec=="e105")])
+  mean_e11 = mshape(gps$coords[,,which(group_vec=="e11")])
   mean_all = mshape(gps$coords)
   
   # Visualize mean shapes, if you want
   open3d()
   shade3d(M_all$Dec2_E105_3, alpha = 0.7, color = "grey70", specular = 1) 
   # Plot sample landmarks
-  plot3d(L_all[[1]], size = 10, col = "red", add=TRUE)
+  plot3d(L_all$Dec2_E105_3, size = 10, col = "red", add=TRUE)
   # Plot avg landmarks
   plot3d(mean_e105, size = 3, add=TRUE)
 
-  #Atlas generation (not really a true atlas, just our best E10.5 morph)
-  ref_shape = tps3d(M_all$Dec2_E105_3, L_all$Dec2_E105_3, mean_e105)
-  ref_shape2 = tps3d(M_all$Dec2_E105_9, L_all$Dec2_E10_9, mean_e105)
-  e10_mean_shape = tps3d(M_all$Dec2_E105_3, L_all$Dec2_E105_3, mean_e10)
+  #Atlas generation by morphing an atlas mesh to the average LMs
+  e10_mean_shape = tps3d(M_atlas$e10_Atlas, L_atlas$e10_atlas, mean_e10)
+  e105_mean_shape = tps3d(M_atlas$e105_atlas, L_atlas$e105_atlas, mean_e105)
+  e11_mean_shape = tps3d(M_atlas$e11_atlas, L_atlas$e11_atlas, mean_e11)
   
+  #TODO: Atlas meshes that do not come from slicer must not be converted
+  M_atlas$e11_atlas = LPS2RAS(M_atlas$e11_atlas)
   
-  shade3d(ref_shape, alpha = 0.7, color = "blue", specular = 1)
-  shade3d(ref_shape2, alpha = 0.7, color = "cyan", specular = 1)
-  plot3d(mean_e105, size = 10, col = "red", add=TRUE)
-# Propagate surface semilandmarks across the mandible
-
+  shade3d(e10_mean_shape, alpha = 0.7, color = "white", specular = 1)
+  plot3d(mean_e10, size = 10, col = "red", add=TRUE)
+  
+  shade3d(M_atlas$e10_Atlas, alpha = 0.7, color = "white", specular = 1)
+  plot3d(L_all$e10_atlas, size = 10, col = "blue", add=TRUE)
 # Plot vectors of growth on average mesh
   # Draw arrows from e10 mean to e105 mean
   growth_vecs <- mean_e105 - mean_e10
   gvec_scale_factor <- 5
-  shade3d(M_all[[1]], alpha = 0.7, color = "grey70")
+  # shade3d(M_all[[1]], alpha = 0.7, color = "grey70")
   #gvec_scale_factor <- 0.1 * max(dist(mean_e10)) 
   for(i in 1:nrow(mean_e10)){
     start <- mean_e10[i,]
@@ -415,18 +441,71 @@ close3d()
   }
 # Repeat for e105-e11
   # Draw arrows from e10 mean to e105 mean
-  growth_vecs <- mean_e11 - mean_e105
-  gvec_scale_factor <- 10
+  growth_vecs = mean_e11 - mean_e105
+  gvec_scale_factor = 1
   #gvec_scale_factor <- 0.1 * max(dist(mean_e10)) 
   for(i in 1:nrow(mean_e105)){
-    start <- mean_e105[i,]
-    end <- mean_e105[i,] + growth_vecs[i,]*gvec_scale_factor
+    start = mean_e105[i,]
+    end = mean_e105[i,] + growth_vecs[i,]*gvec_scale_factor
     segments3d(rbind(start, end), col="blue")
   }
+  
+#Mesh distance between e105 and e11 atlases
+  meshDist(e105_mean_shape, e11_mean_shape, lim = c(-.2, .2))
+  meshDist(e10_mean_shape, e105_mean_shape, lim = c(-.2, .2))
+  
+  shade3d(e10_mean_shape, alpha = 0.7, color = "white", specular = 1)
+  shade3d(e105_mean_shape, alpha = 0.7, color = "blue", specular = 1)
+  
+  open3d()
+  shade3d(e10_mean_shape, col = "white", specular = 1, alpha = 0.5)
+  shade3d(e105_mean_shape, col = "red", specular = 1, alpha = 0.5)
+  plot3d(mean_e10, col = "black", type = "s", specular = 1, add = TRUE, size = 1)
+  plot3d(mean_e105, col = "red", type = "s", specular = 1, add = TRUE, size = 1)
+  
+  open3d()
+  shade3d(e10_mean_shape, col = "white", specular = 1, alpha = 0.5)
+  plot3d(mean_e10, col = "black", type = "s", specular = 1, add = TRUE, size = 1)
 
+  open3d()
+  shade3d(e105_mean_shape, col = "red", specular = 1, alpha = 0.5)
+  plot3d(mean_e105, col = "red", type = "s", specular = 1, add = TRUE, size = 1)
+  
+  open3d()
+  shade3d(M_all$Dec2_E10_12, col = "white", specular = 1, alpha = 0.5)
+  plot3d(L_all$Dec2_E10_12, col = "black", type = "s", specular = 1, add = TRUE, size = 1)
+  
+  
+  front = par3d()$userMatrix
+  heatmapPretty(sub1 = e11_mean_shape, sub2 = e105_mean_shape, 
+                path = "GitHub/division-orientation/Figures/heatmapTest.png", userMatrix = front, legend_name = "Closest point distance",bg = "white",
+                limit = 0.3)
+  
+  sub1 = e11_mean_shape
+  sub2 = e105_mean_shape
+  path = "GitHub/division-orientation/Figures/heatmapTest.png"
+  userMatrix = front
+  legend_name = "Closest point distance"
+  bg = "white"
+  limit = 0.3
+  colExtremes=c("#0288D1", "#D32F2F")
+  legend=TRUE
+  legend_orientation="vertical"
+  
+  limit=NULL
+  
+  
+  
+  
+  
 # Based on 3D angle registrations, generate an average mitotic angle at each landmark position and plot (ask david for arrow code?)
 
-
+#TODO: Replace all above functions with real atlases (thanks Alejandro)
+  # Temporary best meshes:
+  # E10.0: Dec2_e10_12
+  # E10.5: Dec2_E105_3
+  # E11.0: Feb12_E115_2
+  
 #### PART 5 ####
 ### Positional Orientation in the MdP
   
