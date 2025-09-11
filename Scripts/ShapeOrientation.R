@@ -131,7 +131,7 @@ lms_e10$file_name = paste0(lm_cell_path, "/E10/", lms_e10$file_name)
 lms_e10_data = lapply(lms_e10$file_name, read_csv)
 
 lms_e105 = subset(lm_df, age == "e105")
-lms_e105$file_name = paste0(lm_cell_path, lms_e105$file_name)
+lms_e105$file_name = paste0(lm_cell_path, "/", lms_e105$file_name)
 lms_e105_data = lapply(lms_e105$file_name, read_csv)
 
 # Convert CSVs to LM arrays
@@ -174,10 +174,10 @@ gpa_e10 = procSym(lm_e10_array, paired = paired_LMs)
 gpa_e105 = procSym(lm_e105_array, paired = paired_LMs)
 
 # If running on mandible alone:
-gpa_e10 = procSym(lm_e10_array)
+gpa_e105 = procSym(L_cell)
 
 # Retrieve coordinates and subset into two groups by age
-proc_coords = gpa_e10$rotated
+proc_coords = gpa_e105$rotated
 
 # Create shape avg for two groups separately
 mean_e10 = gpa_e10$mshape
@@ -203,6 +203,27 @@ for (i in 1:nsamples) {
 # However, this means the angle vector can be constructed from the simple cos and sin for x and y, without needing to decompose it further. z is always 0 for in-plane annotations
 # We will construct a unit vector for each angle, and transform that according to the rotation matrix.
 # Note that this ONLY transforms the angle- not the coordinate. That needs to be done separately, right from the OPA (TODO)
+
+
+# We start with an adapted version of the registrations for the integrated dataset, using L_cell
+
+  # Retrieve coordinates for each rotated sample using group_vec
+  proc_coords = gps$coords[,,which(group_vec=="cell")]
+  original_coords = land_arr[,,which(group_vec=="cell")]
+  # Ordinary Procrustes Analysis with procOPA on each sample to the mean. procOPA$R stores the rotations matrix
+  
+  # Set up array to hold rotation matrices
+  OPA_Rotations = array(NA, dim = c(3, 3, dim(proc_coords)[3]))
+  
+  # Perform an Ordinary procrustes analysis between the mean sample (mean_e10) and each individual sample (page of the array)
+  # and store the 3x3 rotation matrix from the sample to the mean in the corresponding page of OPA_Rotations 
+  for (i in 1:nsamples) {
+    OPA_result = procOPA(mean_e10, lm_e10_array[, , i])
+    OPA_Rotations[,,i] = OPA_result$R
+  }
+  
+
+
 
 ### Load in all angle lists and loop through each to convert angles to vectors and transform based on OPA rotations. Angles are agnostic to scale and translation,
 ### So we'll just convert the angles themselves here and reposition them after.
@@ -378,7 +399,7 @@ close3d()
   M_all = c(M_e10, M_e105, M_e11)
   # NOTE: If using meshes from 3DSlicer, you may need to convert between RAS and LPS:
   M_all = lapply(M_all, LPS2RAS)
-  common_names = intersect(names(L_all), names(M_all))
+  #common_names = intersect(names(L_all), names(M_all))
   #if(length(common_names) < length(L_all)) warning("Some landmarks or meshes do not have matching names; using intersection")
   
   
@@ -388,7 +409,7 @@ close3d()
   # Now we can add landmarks for the cell sets and atlases with them
   L_all = c(L_shape, L_cell)
   #Build landmark array with all samples
-
+  land_arr = build_landmark_array(L_all)
   
   
   # create group vector aligned to columns of land_arr that describes which sample belongs to which age, derived from separated age groups
@@ -415,13 +436,16 @@ close3d()
   # Plot avg landmarks
   plot3d(mean_e105, size = 3, add=TRUE)
 
+  
+  #TODO: Atlas meshes that do not come from slicer must not be converted
+  M_atlas = lapply(M_atlas, LPS2RAS)
+  
   #Atlas generation by morphing an atlas mesh to the average LMs
   e10_mean_shape = tps3d(M_atlas$e10_Atlas, L_atlas$e10_atlas, mean_e10)
   e105_mean_shape = tps3d(M_atlas$e105_atlas, L_atlas$e105_atlas, mean_e105)
   e11_mean_shape = tps3d(M_atlas$e11_atlas, L_atlas$e11_atlas, mean_e11)
   
-  #TODO: Atlas meshes that do not come from slicer must not be converted
-  M_atlas$e11_atlas = LPS2RAS(M_atlas$e11_atlas)
+
   
   shade3d(e10_mean_shape, alpha = 0.7, color = "white", specular = 1)
   plot3d(mean_e10, size = 10, col = "red", add=TRUE)
@@ -431,13 +455,14 @@ close3d()
 # Plot vectors of growth on average mesh
   # Draw arrows from e10 mean to e105 mean
   growth_vecs <- mean_e105 - mean_e10
-  gvec_scale_factor <- 5
+  gvec_scale_factor <- 2
   # shade3d(M_all[[1]], alpha = 0.7, color = "grey70")
   #gvec_scale_factor <- 0.1 * max(dist(mean_e10)) 
   for(i in 1:nrow(mean_e10)){
     start <- mean_e10[i,]
     end <- mean_e10[i,] + growth_vecs[i,]*gvec_scale_factor
     segments3d(rbind(start, end), col="blue", add = TRUE)
+    # arrow3d(start, end, type = "extrusion", col = "blue")
   }
 # Repeat for e105-e11
   # Draw arrows from e10 mean to e105 mean
@@ -477,7 +502,7 @@ close3d()
   
   
   front = par3d()$userMatrix
-  heatmapPretty(sub1 = e11_mean_shape, sub2 = e105_mean_shape, 
+  heatmapPretty(sub1 = e105_mean_shape, sub2 = e10_mean_shape, 
                 path = "GitHub/division-orientation/Figures/heatmapTest.png", userMatrix = front, legend_name = "Closest point distance",bg = "white",
                 limit = 0.3)
   
