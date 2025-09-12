@@ -26,6 +26,8 @@ library(dplyr)
 library(DescTools)
 library(cowplot)
 library(compositions)
+library(colorRamps)
+library(RColorBrewer)
 
 source("GitHub/division-orientation/Scripts/heatmapGIF.R")
 
@@ -103,7 +105,7 @@ filepath = paste(fullpath,"Data", sep="/")
 #e10_tiff_path = paste(filepath,"Volumes", "e10", sep="/")
 #e105_tiff_path = paste(filepath,"Volumes", "e10_5", sep="/")
 lm_cell_path = paste(filepath, "GM", "Landmarks", "e105_cell", sep="/")
-angles_path = paste(filepath,"Mandibles", sep="/")
+angles_path = paste(filepath,"Angles", "Mandibles", sep="/")
 
 # List all TIFF files for both ages
 #e10_tiff_files = list.files(e10_tiff_path, pattern = "\\.tiff", full.names = TRUE)
@@ -213,18 +215,16 @@ for (i in 1:nsamples) {
   # Ordinary Procrustes Analysis with procOPA on each sample to the mean. procOPA$R stores the rotations matrix
   
   # Set up array to hold rotation matrices
-  OPA_Rotations = array(NA, dim = c(3, 3, dim(proc_coords)[3]))
+  nsamples = dim(proc_coords)[3]
+  OPA_Rotations = array(NA, dim = c(3, 3, nsamples))
   
-  # Perform an Ordinary procrustes analysis between the mean sample (mean_e10) and each individual sample (page of the array)
+  # Perform an Ordinary procrustes analysis between the mean sample (mean_e105) and each individual sample (page of the array)
   # and store the 3x3 rotation matrix from the sample to the mean in the corresponding page of OPA_Rotations 
   for (i in 1:nsamples) {
-    OPA_result = procOPA(mean_e10, lm_e10_array[, , i])
+    OPA_result = procOPA(mean_e105, original_coords[, , i])
     OPA_Rotations[,,i] = OPA_result$R
   }
   
-
-
-
 ### Load in all angle lists and loop through each to convert angles to vectors and transform based on OPA rotations. Angles are agnostic to scale and translation,
 ### So we'll just convert the angles themselves here and reposition them after.
 angle_files = list.files(angles_path, pattern = "\\.csv$", full.names = TRUE)
@@ -233,11 +233,12 @@ all_angles = lapply(angle_files, read.csv)
 #Testing: Realized that the annotations were made on cropped images and therefore coordinate correspondance was lost. Can fix this simply by re-adding the coordinate of the top right pixel to the x and y values. z is unaffected.
 all_angles_original = all_angles
 # Manually defining offsets
-offset_names = c("A1", "A2", "A3")
-x_offset = c(0, 1219, 1453)
-y_offset = c(0, 4072, 1193)
+# TODO: Ensure offset logic is sound after registering to mandible only samples. May need to landmark cropped versions
+offset_names = c("A1", "A2", "A3", "A2b", "A3b")
+x_offset = c(0, 1219, 1453, 0, 0)
+y_offset = c(0, 4072, 1193, 0, 0)
 #z_factor is a correction for a previous plane ratio error
-z_factor = c(3.5, 1, 1)
+z_factor = c(3.5, 1, 1, 1 ,1)
 offsets = data.frame(offset_names,x_offset,y_offset,z_factor)
 for (i in seq_along(all_angles)) {
   all_angles[[i]]$SpindlePole_Location_Center_X = all_angles[[i]]$SpindlePole_Location_Center_X + offsets$x_offset[i]
@@ -251,7 +252,6 @@ for (i in seq_along(all_angles)){
   all_angles[[i]]$SpindleAngle = all_angles[[i]]$SpindlePole_AreaShape_Orientation
   all_angles[[i]]$SpindleAngle = as.circular(all_angles[[i]]$SpindleAngle, units = "degrees", type = "angles")
   #angles_degrees = circular(all_angles[[i]]$SpindleAngle, units = "degrees")
-  # angle_radians = conversion.circular(angles_degrees, units = "radians")
   # Construct unit vector from each angle by adding a few columns on. First is the angle in radians, followed by the unrotated components of each unit vector. This is kinda clean, actually.
   all_angles[[i]] = all_angles[[i]] %>%
     rowwise() %>%
@@ -434,24 +434,31 @@ close3d()
   # Plot sample landmarks
   plot3d(L_all$Dec2_E105_3, size = 10, col = "red", add=TRUE)
   # Plot avg landmarks
-  plot3d(mean_e105, size = 3, add=TRUE)
+  plot3d(mean_e105, size = 5, add=TRUE)
 
   
   #TODO: Atlas meshes that do not come from slicer must not be converted
   M_atlas = lapply(M_atlas, LPS2RAS)
   
   #Atlas generation by morphing an atlas mesh to the average LMs
-  e10_mean_shape = tps3d(M_atlas$e10_Atlas, L_atlas$e10_atlas, mean_e10)
+  e10_mean_shape = tps3d(M_atlas$e10_atlas, L_atlas$e10_atlas, mean_e10)
   e105_mean_shape = tps3d(M_atlas$e105_atlas, L_atlas$e105_atlas, mean_e105)
   e11_mean_shape = tps3d(M_atlas$e11_atlas, L_atlas$e11_atlas, mean_e11)
   
+  e105_from_e10 = tps3d(M_atlas$e10_atlas, L_atlas$e10_atlas, mean_e105)
+  e10_from_e105 = tps3d(M_atlas$e105_atlas, L_atlas$e105_atlas, mean_e10)
+  e11_from_e105 = tps3d(M_atlas$e105_atlas, L_atlas$e105_atlas, mean_e11)
+  e105_from_e11 = tps3d(M_atlas$e11_atlas, L_atlas$e11_atlas, mean_e105)
+  e11_from_e10 = tps3d(M_atlas$e10_atlas, L_atlas$e10_atlas, mean_e11)
+  
 
   
-  shade3d(e10_mean_shape, alpha = 0.7, color = "white", specular = 1)
+  shade3d(e105_mean_shape, alpha = 0.7, color = "white", specular = 1)
+  shade3d(e105_from_e10, alpha = 0.7, color = "yellow", specular = 1)
   plot3d(mean_e10, size = 10, col = "red", add=TRUE)
   
-  shade3d(M_atlas$e10_Atlas, alpha = 0.7, color = "white", specular = 1)
-  plot3d(L_all$e10_atlas, size = 10, col = "blue", add=TRUE)
+  shade3d(e10_mean_shape, alpha = 0.8, color = "white", specular = 1)
+  plot3d(mean_e10, size = 10, col = "red", add=TRUE)
 # Plot vectors of growth on average mesh
   # Draw arrows from e10 mean to e105 mean
   growth_vecs <- mean_e105 - mean_e10
@@ -476,8 +483,29 @@ close3d()
   }
   
 #Mesh distance between e105 and e11 atlases
-  meshDist(e105_mean_shape, e11_mean_shape, lim = c(-.2, .2))
-  meshDist(e10_mean_shape, e105_mean_shape, lim = c(-.2, .2))
+  #Start with setting up our heatmap pallete
+  colExtremes = c("#0288D1", "#FAFAFA", "#D32F2F")
+
+  col_ramp = colorRampPalette(c(colExtremes[1],colExtremes[2],colExtremes[3]))
+  col = col_ramp(100)
+  
+  fixedColFun <- function(vals, minVal = -0.1, maxVal = 0.1, palette = col) {
+    scaled <- (vals - minVal) / (maxVal - minVal)  # scale to [0, 1]
+    scaled[scaled < 0] <- 0
+    scaled[scaled > 1] <- 1
+    palette[ceiling(scaled * (length(palette) - 1)) + 1]
+  }
+
+  colFun <- function(vals) fixedColFun(vals, minVal = -0.1, maxVal = 0.1, palette = col)
+  
+  
+  meshDist(e105_mean_shape, e11_mean_shape, lim = c(-.2, .2), shade = TRUE, displace = FALSE, userMatrix = front, steps = 10, rampcolors = col)
+  meshDist(e105_mean_shape, e11_from_e105, lim = c(-.2, .2), shade = TRUE, displace = FALSE, userMatrix = front, steps = 10, rampcolors = col)
+  meshDist(e105_from_e11, e11_mean_shape, lim = c(-.2, .2), shade = TRUE, displace = FALSE, userMatrix = front, steps = 10, rampcolors = col)
+  
+  meshDist(e10_mean_shape, e105_from_e10, lim = c(-.2, .2), shade = TRUE, displace = FALSE, userMatrix = front, steps = 10, rampcolors = col)
+  meshDist(e10_mean_shape, e105_mean_shape, lim = c(-.2, .2), shade = FALSE, displace = TRUE, userMatrix = front, steps = 10, rampcolors = col)
+  meshDist(e10_from_e105, e105_mean_shape, lim = c(-.2, .2), shade = TRUE, displace = FALSE, userMatrix = front, steps = 10, rampcolors = col)
   
   shade3d(e10_mean_shape, alpha = 0.7, color = "white", specular = 1)
   shade3d(e105_mean_shape, alpha = 0.7, color = "blue", specular = 1)
@@ -489,16 +517,16 @@ close3d()
   plot3d(mean_e105, col = "red", type = "s", specular = 1, add = TRUE, size = 1)
   
   open3d()
-  shade3d(e10_mean_shape, col = "white", specular = 1, alpha = 0.5)
-  plot3d(mean_e10, col = "black", type = "s", specular = 1, add = TRUE, size = 1)
+  shade3d(e10_from_e105, col = "white", specular = 1, alpha = 0.8, userMatrix = front)
+  plot3d(mean_e10, col = "red", type = "s", specular = 1, add = TRUE, size = 1)
 
   open3d()
-  shade3d(e105_mean_shape, col = "red", specular = 1, alpha = 0.5)
+  shade3d(e105_from_e10, col = "white", specular = 1, alpha = 0.8, userMatrix = front)
   plot3d(mean_e105, col = "red", type = "s", specular = 1, add = TRUE, size = 1)
   
   open3d()
-  shade3d(M_all$Dec2_E10_12, col = "white", specular = 1, alpha = 0.5)
-  plot3d(L_all$Dec2_E10_12, col = "black", type = "s", specular = 1, add = TRUE, size = 1)
+  shade3d(e11_from_e105, col = "white", specular = 1, alpha = 0.8, userMatrix = front)
+  plot3d(mean_e11, col = "red", type = "s", specular = 1, add = TRUE, size = 1)
   
   
   front = par3d()$userMatrix
