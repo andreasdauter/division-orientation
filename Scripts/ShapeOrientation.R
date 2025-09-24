@@ -212,6 +212,13 @@ for (i in 1:nsamples) {
   # Retrieve coordinates for each rotated sample using group_vec
   proc_coords = gps$coords[,,which(group_vec=="cell")]
   original_coords = land_arr[,,which(group_vec=="cell")]
+  
+  # Landmark coordinates are currently in real space, while cell coordinates are in voxel space. Must convert original LMs to voxel space
+  # original_coords_test = original_coords
+  voxFactor = 0.00021
+  original_coords[,1,] = original_coords_test[,1,]/voxFactor
+  original_coords[,2,] = original_coords_test[,2,]/voxFactor
+  original_coords[,3,] = original_coords_test[,3,]/voxFactor
   # Ordinary Procrustes Analysis with procOPA on each sample to the mean. procOPA$R stores the rotations matrix
   
   # Set up array to hold rotation matrices
@@ -230,15 +237,15 @@ for (i in 1:nsamples) {
 angle_files = list.files(angles_path, pattern = "\\.csv$", full.names = TRUE)
 all_angles = lapply(angle_files, read.csv)
 
-#Testing: Realized that the annotations were made on cropped images and therefore coordinate correspondance was lost. Can fix this simply by re-adding the coordinate of the top right pixel to the x and y values. z is unaffected.
+#Some annotations were made on cropped images and therefore coordinate correspondance was lost. Can fix this simply by re-adding the coordinate of the top right pixel to the x and y values. z is unaffected.
 all_angles_original = all_angles
 # Manually defining offsets
 # TODO: Ensure offset logic is sound after registering to mandible only samples. May need to landmark cropped versions
-offset_names = c("A1", "A2", "A3", "A2b", "A3b")
-x_offset = c(0, 1219, 1453, 0, 0)
-y_offset = c(0, 4072, 1193, 0, 0)
+offset_names = c("A1", "A2", "A3")
+x_offset = c(0, 1219, 1453)
+y_offset = c(0, 4072, 1193)
 #z_factor is a correction for a previous plane ratio error
-z_factor = c(3.5, 1, 1, 1 ,1)
+z_factor = c(3.5, 1, 1)
 offsets = data.frame(offset_names,x_offset,y_offset,z_factor)
 for (i in seq_along(all_angles)) {
   all_angles[[i]]$SpindlePole_Location_Center_X = all_angles[[i]]$SpindlePole_Location_Center_X + offsets$x_offset[i]
@@ -286,15 +293,14 @@ for (i in 1:length(all_angles)){
 #angle_vector[3] = 0
 
  #Coordinate list of angles, as an array with the same dimensions (ncells x 3 x nsamples)
-
 ## Transformation of coordinates into the same space
 for (i in 1:length(all_angles)){
   
   # 1. Get original landmarks
-  lm_raw = lm_e10_array[, , i]
+  lm_raw = original_coords[, , i]
   
   # 2. Get the GPA-transformed landmarks
-  lm_aligned = gpa_e10$rotated[, , i]
+  lm_aligned = proc_coords[, , i]
   
   # 3. Get centroid
   sample_centroid = colMeans(lm_raw)
@@ -318,8 +324,27 @@ for (i in 1:length(all_angles)){
   ungroup()
 }
 
-#A test- take a few sample angles, rotate them along with a landmark set, and plot it all.
-open3d(zoom = 0.75, windowRect = c(0, 0, 700, 700)) 
+all_angles[[3]] = all_angles[[3]] %>% dplyr::select(!(c(X, X.1)))
+# Take the coordinates out for a test plot
+angles_flat = bind_rows(all_angles)
+#temp- remove later
+angles_A1 = all_angles[[1]]
+write.csv(angles_A1, paste(filepath,"AurA_A1_AngleTest_axisflip_invert.csv", sep="/"))
+angles_A1 = read.csv(paste(filepath,"AurA_A1_AngleTest.csv", sep="/"))
+angles_A1$r = -10560-angles_A1$r
+angles_A1$a = -7104-angles_A1$a
+# end of temp
+cell_coords = xyz.coords(x = angles_flat$t_x, y = angles_flat$t_y, z = angles_flat$t_z)
+cell_coords_original = xyz.coords(x = angles_flat$SpindlePole_Location_Center_X, y = angles_flat$SpindlePole_Location_Center_Y, z = angles_flat$SpindlePole_Location_Center_Z)
+open3d()
+plot3d(cell_coords, size = 1, col = "blue")
+plot3d(cell_coords_original, size = 1, col = "red", add = TRUE)
+plot3d(proc_coords[,,1], size = 10, col = 'cyan', add = TRUE)
+plot3d(proc_coords[,,2], size = 10, col = 'cyan3', add = TRUE)
+plot3d(proc_coords[,,3], size = 10, col = 'cyan4', add = TRUE)
+plot3d(original_coords[,,1], size = 10, col = 'yellow', add = TRUE)
+plot3d(original_coords[,,2], size = 10, col = 'orange', add = TRUE)
+plot3d(original_coords[,,3], size = 10, col = 'brown', add = TRUE)
 # plot the decimated head mesh
 # rgl::shade3d(head_mesh_spec1_dec, color = "gray", alpha =0.9)
 # plot the landmarks in blue
@@ -558,6 +583,11 @@ close3d()
   # E10.0: Dec2_e10_12
   # E10.5: Dec2_E105_3
   # E11.0: Feb12_E115_2
+  
+  
+  
+  
+  
   
 #### PART 5 ####
 ### Positional Orientation in the MdP
