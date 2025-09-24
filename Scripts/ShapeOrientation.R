@@ -214,11 +214,12 @@ for (i in 1:nsamples) {
   original_coords = land_arr[,,which(group_vec=="cell")]
   
   # Landmark coordinates are currently in real space, while cell coordinates are in voxel space. Must convert original LMs to voxel space
+    # Note: This has now been corrected in the dataset but I'm leaving the code here in case I need it in the future
   # original_coords_test = original_coords
-  voxFactor = 0.00021
-  original_coords[,1,] = original_coords_test[,1,]/voxFactor
-  original_coords[,2,] = original_coords_test[,2,]/voxFactor
-  original_coords[,3,] = original_coords_test[,3,]/voxFactor
+  #voxFactor = 0.00021
+  #original_coords[,1,] = original_coords_test[,1,]/voxFactor
+  #original_coords[,2,] = original_coords_test[,2,]/voxFactor
+  #original_coords[,3,] = original_coords_test[,3,]/voxFactor
   # Ordinary Procrustes Analysis with procOPA on each sample to the mean. procOPA$R stores the rotations matrix
   
   # Set up array to hold rotation matrices
@@ -237,26 +238,9 @@ for (i in 1:nsamples) {
 angle_files = list.files(angles_path, pattern = "\\.csv$", full.names = TRUE)
 all_angles = lapply(angle_files, read.csv)
 
-#Some annotations were made on cropped images and therefore coordinate correspondance was lost. Can fix this simply by re-adding the coordinate of the top right pixel to the x and y values. z is unaffected.
-all_angles_original = all_angles
-# Manually defining offsets
-# TODO: Ensure offset logic is sound after registering to mandible only samples. May need to landmark cropped versions
-offset_names = c("A1", "A2", "A3")
-x_offset = c(0, 1219, 1453)
-y_offset = c(0, 4072, 1193)
-#z_factor is a correction for a previous plane ratio error
-z_factor = c(3.5, 1, 1)
-offsets = data.frame(offset_names,x_offset,y_offset,z_factor)
-for (i in seq_along(all_angles)) {
-  all_angles[[i]]$SpindlePole_Location_Center_X = all_angles[[i]]$SpindlePole_Location_Center_X + offsets$x_offset[i]
-  all_angles[[i]]$SpindlePole_Location_Center_Y = all_angles[[i]]$SpindlePole_Location_Center_Y + offsets$y_offset[i]
-  all_angles[[i]]$SpindlePole_Location_Center_Z = all_angles[[i]]$SpindlePole_Location_Center_Z * offsets$z_factor[i]
-}
-
-
 for (i in seq_along(all_angles)){
   # Load one sample at a time and convert angle data back to circular numeric, in radians.
-  all_angles[[i]]$SpindleAngle = all_angles[[i]]$SpindlePole_AreaShape_Orientation
+  all_angles[[i]]$SpindleAngle = all_angles[[i]]$AreaShape_Orientation
   all_angles[[i]]$SpindleAngle = as.circular(all_angles[[i]]$SpindleAngle, units = "degrees", type = "angles")
   #angles_degrees = circular(all_angles[[i]]$SpindleAngle, units = "degrees")
   # Construct unit vector from each angle by adding a few columns on. First is the angle in radians, followed by the unrotated components of each unit vector. This is kinda clean, actually.
@@ -286,12 +270,6 @@ for (i in 1:length(all_angles)){
     dplyr::select(-vec_rot)
 }
 
-## May need later: directly create vector from angle
-#angle_vector = vector(length = 3)
-#angle_vector[1] = cos(this_angle)
-#angle_vector[2] = sin(this_angle)
-#angle_vector[3] = 0
-
  #Coordinate list of angles, as an array with the same dimensions (ncells x 3 x nsamples)
 ## Transformation of coordinates into the same space
 for (i in 1:length(all_angles)){
@@ -314,7 +292,7 @@ for (i in 1:length(all_angles)){
   all_angles[[i]] = all_angles[[i]] %>%
   rowwise() %>%
   mutate(
-    trans = list(transform_point(x = SpindlePole_Location_Center_X, y = SpindlePole_Location_Center_Y, z = SpindlePole_Location_Center_Z, centroid = sample_centroid, cs = sample_cs, R = OPA_Rotations[,,i])),
+    trans = list(transform_point(x = Location_Center_X, y = Location_Center_Y, z = Location_Center_Z, centroid = sample_centroid, cs = sample_cs, R = OPA_Rotations[,,i])),
     t_x = trans[[1]],
     t_y = trans[[2]],
     t_z = trans[[3]]
@@ -335,7 +313,7 @@ angles_A1$r = -10560-angles_A1$r
 angles_A1$a = -7104-angles_A1$a
 # end of temp
 cell_coords = xyz.coords(x = angles_flat$t_x, y = angles_flat$t_y, z = angles_flat$t_z)
-cell_coords_original = xyz.coords(x = angles_flat$SpindlePole_Location_Center_X, y = angles_flat$SpindlePole_Location_Center_Y, z = angles_flat$SpindlePole_Location_Center_Z)
+cell_coords_original = xyz.coords(x = angles_flat$Location_Center_X, y = angles_flat$Location_Center_Y, z = angles_flat$Location_Center_Z)
 open3d()
 plot3d(cell_coords, size = 1, col = "blue")
 plot3d(cell_coords_original, size = 1, col = "red", add = TRUE)
@@ -462,7 +440,7 @@ close3d()
   plot3d(mean_e105, size = 5, add=TRUE)
 
   
-  #TODO: Atlas meshes that do not come from slicer must not be converted
+  #TODO: Atlas meshes that do not come from slicer must be converted between coordinate systems
   M_atlas = lapply(M_atlas, LPS2RAS)
   
   #Atlas generation by morphing an atlas mesh to the average LMs
