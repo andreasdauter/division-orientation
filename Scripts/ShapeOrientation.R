@@ -302,7 +302,7 @@ for (i in 1:length(all_angles)){
   ungroup()
 }
 
-all_angles[[3]] = all_angles[[3]] %>% dplyr::select(!(c(X, X.1)))
+# all_angles[[3]] = all_angles[[3]] %>% dplyr::select(!(c(X, X.1)))
 # Take the coordinates out for a test plot
 angles_flat = bind_rows(all_angles)
 #temp- remove later
@@ -400,8 +400,7 @@ close3d()
     
   
   M_all = c(M_e10, M_e105, M_e11)
-  # NOTE: If using meshes from 3DSlicer, you may need to convert between RAS and LPS:
-  M_all = lapply(M_all, LPS2RAS)
+
   #common_names = intersect(names(L_all), names(M_all))
   #if(length(common_names) < length(L_all)) warning("Some landmarks or meshes do not have matching names; using intersection")
   
@@ -412,9 +411,12 @@ close3d()
   # Now we can add landmarks for the cell sets and atlases with them
   L_all = c(L_shape, L_cell)
   #Build landmark array with all samples
-  land_arr = build_landmark_array(L_all)
+  land_arr_rps = build_landmark_array(L_all)
   
-  
+  # NOTE: If using meshes from 3DSlicer, you may need to convert landmarks between RAS and LPS:
+  land_arr = land_arr_rps
+  land_arr[,c(1,2),] = -land_arr[,c(1,2),]
+
   # create group vector aligned to columns of land_arr that describes which sample belongs to which age, derived from separated age groups
   group_vec = ifelse(names(L_all) %in% names(L_e10), "e10",
                      ifelse(names(L_all) %in% names(L_e105), "e105",
@@ -441,7 +443,7 @@ close3d()
 
   
   #TODO: Atlas meshes that do not come from slicer must be converted between coordinate systems
-  M_atlas = lapply(M_atlas, LPS2RAS)
+  # M_atlas = lapply(M_atlas, LPS2RAS)
   
   #Atlas generation by morphing an atlas mesh to the average LMs
   e10_mean_shape = tps3d(M_atlas$e10_atlas, L_atlas$e10_atlas, mean_e10)
