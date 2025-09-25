@@ -99,107 +99,121 @@ transform_point = function(x, y, z, centroid, cs, R) {
   vec_centered = (vec - centroid) / cs
   as.list(vec_centered %*% R)
 }
+
+#### PART 1 ####
+### Data preparation and GM
 # Load in data
 fullpath = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 filepath = paste(fullpath,"Data", sep="/")
-#e10_tiff_path = paste(filepath,"Volumes", "e10", sep="/")
-#e105_tiff_path = paste(filepath,"Volumes", "e10_5", sep="/")
 lm_cell_path = paste(filepath, "GM", "Landmarks", "e105_cell", sep="/")
 angles_path = paste(filepath,"Angles", "Mandibles", sep="/")
 
-# List all TIFF files for both ages
-#e10_tiff_files = list.files(e10_tiff_path, pattern = "\\.tiff", full.names = TRUE)
-#e105_tiff_files = list.files(e105_tiff_path, pattern = "\\.tiff", full.names = TRUE)
-# Load TIFF volumes into a list
-#e10_volumes_list = lapply(e10_tiff_files, function(file) {
-#  readImage(file)  # Reads TIFF as a 3D array (x, y, z)
-#})
-#e105_volumes_list = lapply(e105_tiff_files, function(file) {
-#  readImage(file)  # Reads TIFF as a 3D array (x, y, z)
-#})
-## This will be used for visualization later
+## Load in data: mandible landmarks from E10.0 and E10.5 volumes, and meshes from tissue segmentations
+# This analysis uses a reduced 7-landmark scheme for the mandible alone.
+# ---------------------------
+# Paths to edit
+gmpath = paste(fullpath,"Data", "GM", sep="/")
+landmark_dir_e10 = paste(gmpath,"Landmarks", "e10", sep="/") # folder with .csv files for e10
+landmark_dir_e105 = paste(gmpath,"Landmarks", "e105", sep="/") # folder with .csv files for e105
+landmark_dir_cell = paste(gmpath,"Landmarks", "e105_cell", sep="/") # folder with .csv files for e105 samples with cell data
+landmark_dir_e11 = paste(gmpath,"Landmarks", "e11", sep="/") # folder with .csv files for e11
+landmark_dir_atlas = paste(gmpath,"Landmarks", "atlas", sep="/") # folder with .csv files for atlases by age
+mesh_dir_e10 = paste(gmpath,"Meshes", "e10", sep="/") # folder with .ply meshes for e10
+mesh_dir_e105 = paste(gmpath,"Meshes", "e105", sep="/") # folder with .ply meshes for e105
+mesh_dir_e11 = paste(gmpath,"Meshes", "e11", sep="/") # folder with .ply meshes for e105
+mesh_dir_atlas = paste(gmpath,"Meshes", "atlas", sep="/") # folder with .ply meshes for atlases by age
+# ---------------------------
+# list files by group
+lm_files_e10 = list.files(landmark_dir_e10, pattern = "\\.csv$", full.names = TRUE)
+lm_files_e105 = list.files(landmark_dir_e105, pattern = "\\.csv$", full.names = TRUE)
+lm_files_e11 = list.files(landmark_dir_e11, pattern = "\\.csv$", full.names = TRUE)
+lm_files_cell = list.files(landmark_dir_cell, pattern = "\\.csv$", full.names = TRUE)
+lm_files_atlas = list.files(landmark_dir_atlas, pattern = "\\.csv$", full.names = TRUE)
+mesh_files_e10 = list.files(mesh_dir_e10, pattern = "\\.ply$", full.names = TRUE)
+mesh_files_e105 = list.files(mesh_dir_e105, pattern = "\\.ply$", full.names = TRUE)
+mesh_files_e11 = list.files(mesh_dir_e11, pattern = "\\.ply$", full.names = TRUE)
+mesh_files_atlas = list.files(mesh_dir_atlas, pattern = "\\.ply$", full.names = TRUE)
 
-# Load Landmarks in one dataframe
-sample_names = list.files(lm_cell_path, pattern = "\\.csv", full.names = FALSE, recursive = TRUE)
 
-lm_df = data.frame(
-  file_name = basename(sample_names),
-  age = "e105",
-  stringsAsFactors = FALSE
-)
-# Subset by age and store coordinates
-lms_e10 = subset(lm_df, age == "E10")
-lms_e10$file_name = paste0(lm_cell_path, "/E10/", lms_e10$file_name)
-lms_e10_data = lapply(lms_e10$file_name, read_csv)
+# Test for missing files
+if(length(lm_files_e10) == 0 || length(lm_files_e105) == 0 || length(lm_files_e11) == 0) stop("At least one age point is empty")
 
-lms_e105 = subset(lm_df, age == "e105")
-lms_e105$file_name = paste0(lm_cell_path, "/", lms_e105$file_name)
-lms_e105_data = lapply(lms_e105$file_name, read_csv)
+# Load landmarks into an array
+L_e10 = read_all_landmarks(lm_files_e10)
+L_e105 = read_all_landmarks(lm_files_e105)
+L_e11 = read_all_landmarks(lm_files_e11)
+L_cell = read_all_landmarks(lm_files_cell)
+L_atlas = read_all_landmarks(lm_files_atlas)
 
-# Convert CSVs to LM arrays
-lm_e10_array = array(NA, dim = c(nrow(lms_e10_data[[1]]), 3, length(lms_e10_data)))
-lm_e105_array = array(NA, dim = c(nrow(lms_e105_data[[1]]), 3, length(lms_e105_data)))
-
-# Fill the array
-for (i in 1:dim(lm_e10_array)[3]) {
-  lm_e10_array[, , i] = as.matrix(lms_e10_data[[i]][, 1:3])
+# Load meshes into a list
+M_e10 = list()
+for(m in mesh_files_e10){
+  name = tools::file_path_sans_ext(basename(m))
+  M_e10[[name]] = file2mesh(m, clean=FALSE)
 }
-
-for (i in 1:dim(lm_e105_array)[3]) {
-  lm_e105_array[, , i] = as.matrix(lms_e105_data[[i]][, 1:3])
+M_e105 = list()
+for(m in mesh_files_e105){
+  name = tools::file_path_sans_ext(basename(m))
+  M_e105[[name]] = file2mesh(m, clean=FALSE)
 }
-
-# Define vector of midline LMs
-midline_LMs = c(1,2,3,4,5)
-# Define paired LMs
-paired_LMs = matrix(c(
-  6, 23,
-  7, 24,
-  8, 25,
-  9, 26,
-  10, 27,
-  11, 28,
-  12, 29,
-  13, 30,
-  14, 31,
-  15, 32,
-  16, 33,
-  17, 34,
-  18, 35,
-  19, 36,
-  20, 37,
-  21, 38,
-  22, 29
-), ncol = 2, byrow = TRUE)
-# Run GPA on all samples, paired, with ProcSym
-gpa_e10 = procSym(lm_e10_array, paired = paired_LMs)
-gpa_e105 = procSym(lm_e105_array, paired = paired_LMs)
-
-# If running on mandible alone:
-gpa_e105 = procSym(L_cell)
-
-# Retrieve coordinates and subset into two groups by age
-proc_coords = gpa_e105$rotated
-
-# Create shape avg for two groups separately
-mean_e10 = gpa_e10$mshape
-
-# Ordinary Procrustes Analysis with procOPA on each sample to the mean. procOPA$R stores the rotations matrix
-
-# Set up array to hold rotation matrices
-nsamples = dim(lm_e10_array)[3]
-OPA_Rotations = array(NA, dim = c(3, 3, nsamples))
-
-# Perform an Ordinary procrustes analysis between the mean sample (mean_e10) and each individual sample (page of the array)
-# and store the 3x3 rotation matrix from the sample to the mean in the corresponding page of OPA_Rotations 
-for (i in 1:nsamples) {
-  OPA_result = procOPA(mean_e10, lm_e10_array[, , i])
-  OPA_Rotations[,,i] = OPA_result$R
+M_e11 = list()
+for(m in mesh_files_e11){
+  name = tools::file_path_sans_ext(basename(m))
+  M_e11[[name]] = file2mesh(m, clean=FALSE)
+}
+M_atlas= list()
+for(m in mesh_files_atlas){
+  name = tools::file_path_sans_ext(basename(m))
+  M_atlas[[name]] = file2mesh(m, clean=FALSE)
 }
 
 
+# Combine landmarks into one list and check that each landmark set has a mesh
+L_shape = c(L_e10, L_e105, L_e11)
 
-#### PART 3 ####
+
+M_all = c(M_e10, M_e105, M_e11)
+
+#common_names = intersect(names(L_all), names(M_all))
+#if(length(common_names) < length(L_all)) warning("Some landmarks or meshes do not have matching names; using intersection")
+
+
+# Exclude any nonintersecting samples
+L_shape = L_shape[common_names]
+M_all = M_all[common_names]
+# Now we can add landmarks for the cell sets and atlases with them
+L_all = c(L_shape, L_cell)
+#Build landmark array with all samples
+land_arr_rps = build_landmark_array(L_all)
+
+# NOTE: If using meshes from 3DSlicer, you may need to convert landmarks between RAS and LPS:
+land_arr = land_arr_rps
+land_arr[,c(1,2),] = -land_arr[,c(1,2),]
+
+# create group vector aligned to columns of land_arr that describes which sample belongs to which age, derived from separated age groups
+group_vec = ifelse(names(L_all) %in% names(L_e10), "e10",
+                   ifelse(names(L_all) %in% names(L_e105), "e105",
+                          ifelse(names(L_all) %in% names(L_e11), "e11", 
+                                 ifelse(names(L_all) %in% names(L_cell), "cell",
+                                        ifelse(names(L_all) %in% names(L_atlas), "atlas", "NA")))))
+# Register samples
+# Run GPA
+gps = gpagen(land_arr, ProcD = FALSE)
+
+# After GPA, compute group mean shapes for each group seperately
+mean_e10 = mshape(gps$coords[,,which(group_vec=="e10")]) # p x 3
+mean_e105 = mshape(gps$coords[,,which(group_vec=="e105")])
+mean_e11 = mshape(gps$coords[,,which(group_vec=="e11")])
+mean_all = mshape(gps$coords)
+
+#Atlas generation by morphing an atlas mesh to the average LMs
+e10_mean_shape = tps3d(M_atlas$e10_atlas, L_atlas$e10_atlas, mean_e10)
+e105_mean_shape = tps3d(M_atlas$e105_atlas, L_atlas$e105_atlas, mean_e105)
+e11_mean_shape = tps3d(M_atlas$e11_atlas, L_atlas$e11_atlas, mean_e11)
+
+# 
+
+#### PART 2 ####
 ##Transformation of angles into a common 3D space
 # A note: Each rotation matrix is a composite of rotations in all three axes from each sample to the mean. The order matters. these were applied in ZXY order, which is standard.
 # However, this means the angle vector can be constructed from the simple cos and sin for x and y, without needing to decompose it further. z is always 0 for in-plane annotations
@@ -302,16 +316,9 @@ for (i in 1:length(all_angles)){
   ungroup()
 }
 
-# all_angles[[3]] = all_angles[[3]] %>% dplyr::select(!(c(X, X.1)))
-# Take the coordinates out for a test plot
+# This section is just plots to test that the coordinates all good moved into the correct space.
 angles_flat = bind_rows(all_angles)
-#temp- remove later
-angles_A1 = all_angles[[1]]
-write.csv(angles_A1, paste(filepath,"AurA_A1_AngleTest_axisflip_invert.csv", sep="/"))
-angles_A1 = read.csv(paste(filepath,"AurA_A1_AngleTest.csv", sep="/"))
-angles_A1$r = -10560-angles_A1$r
-angles_A1$a = -7104-angles_A1$a
-# end of temp
+
 cell_coords = xyz.coords(x = angles_flat$t_x, y = angles_flat$t_y, z = angles_flat$t_z)
 cell_coords_original = xyz.coords(x = angles_flat$Location_Center_X, y = angles_flat$Location_Center_Y, z = angles_flat$Location_Center_Z)
 open3d()
@@ -323,147 +330,23 @@ plot3d(proc_coords[,,3], size = 10, col = 'cyan4', add = TRUE)
 plot3d(original_coords[,,1], size = 10, col = 'yellow', add = TRUE)
 plot3d(original_coords[,,2], size = 10, col = 'orange', add = TRUE)
 plot3d(original_coords[,,3], size = 10, col = 'brown', add = TRUE)
-# plot the decimated head mesh
-# rgl::shade3d(head_mesh_spec1_dec, color = "gray", alpha =0.9)
+
 # plot the landmarks in blue
 plot3d(gpa_e10$mshape, type = "s", radius = 0.01, col = "blue", xlab = "X", ylab = "Y", zlab = "Z")
 text3d(gpa_e10$mshape, texts = as.character(1:nrow(gpa_e10$mshape)), adj = c(1, 1), cex = 0.8, col = "black")
-#plot_3d_LMs(lms_e10, 'darkblue')
 close3d()
 
 
-#### PART 4 ####
-### Geometric morphometric analysis of shape change and mitotic orientation
+#### PART 3 ####
+### Geometric morphometric analysis of shape change
 
-## Load in data: mandible landmarks from E10.0 and E10.5 volumes, and meshes from tissue segmentations
-# This analysis uses a reduced 7-landmark scheme for the mandible alone.
-  # ---------------------------
-  # Paths to edit
-  gmpath = paste(fullpath,"Data", "GM", sep="/")
-  landmark_dir_e10 = paste(gmpath,"Landmarks", "e10", sep="/") # folder with .csv files for e10
-  landmark_dir_e105 = paste(gmpath,"Landmarks", "e105", sep="/") # folder with .csv files for e105
-  landmark_dir_cell = paste(gmpath,"Landmarks", "e105_cell", sep="/") # folder with .csv files for e105 samples with cell data
-  landmark_dir_e11 = paste(gmpath,"Landmarks", "e11", sep="/") # folder with .csv files for e11
-  landmark_dir_atlas = paste(gmpath,"Landmarks", "atlas", sep="/") # folder with .csv files for atlases by age
-  mesh_dir_e10 = paste(gmpath,"Meshes", "e10", sep="/") # folder with .ply meshes for e10
-  mesh_dir_e105 = paste(gmpath,"Meshes", "e105", sep="/") # folder with .ply meshes for e105
-  mesh_dir_e11 = paste(gmpath,"Meshes", "e11", sep="/") # folder with .ply meshes for e105
-  mesh_dir_atlas = paste(gmpath,"Meshes", "atlas", sep="/") # folder with .ply meshes for atlases by age
-  # ---------------------------
-  # list files by group
-  lm_files_e10 = list.files(landmark_dir_e10, pattern = "\\.csv$", full.names = TRUE)
-  lm_files_e105 = list.files(landmark_dir_e105, pattern = "\\.csv$", full.names = TRUE)
-  lm_files_e11 = list.files(landmark_dir_e11, pattern = "\\.csv$", full.names = TRUE)
-  lm_files_cell = list.files(landmark_dir_cell, pattern = "\\.csv$", full.names = TRUE)
-  lm_files_atlas = list.files(landmark_dir_atlas, pattern = "\\.csv$", full.names = TRUE)
-  mesh_files_e10 = list.files(mesh_dir_e10, pattern = "\\.ply$", full.names = TRUE)
-  mesh_files_e105 = list.files(mesh_dir_e105, pattern = "\\.ply$", full.names = TRUE)
-  mesh_files_e11 = list.files(mesh_dir_e11, pattern = "\\.ply$", full.names = TRUE)
-  mesh_files_atlas = list.files(mesh_dir_atlas, pattern = "\\.ply$", full.names = TRUE)
-  
-  
-  # Test for missing files
-  if(length(lm_files_e10) == 0 || length(lm_files_e105) == 0 || length(lm_files_e11) == 0) stop("At least one age point is empty")
-  
-  # Load landmarks into an array
-  L_e10 = read_all_landmarks(lm_files_e10)
-  L_e105 = read_all_landmarks(lm_files_e105)
-  L_e11 = read_all_landmarks(lm_files_e11)
-  L_cell = read_all_landmarks(lm_files_cell)
-  L_atlas = read_all_landmarks(lm_files_atlas)
-  
-  # Load meshes into a list
-  M_e10 = list()
-  for(m in mesh_files_e10){
-    name = tools::file_path_sans_ext(basename(m))
-    M_e10[[name]] = file2mesh(m, clean=FALSE)
-  }
-  M_e105 = list()
-  for(m in mesh_files_e105){
-    name = tools::file_path_sans_ext(basename(m))
-    M_e105[[name]] = file2mesh(m, clean=FALSE)
-  }
-  M_e11 = list()
-  for(m in mesh_files_e11){
-    name = tools::file_path_sans_ext(basename(m))
-    M_e11[[name]] = file2mesh(m, clean=FALSE)
-  }
-  M_atlas= list()
-  for(m in mesh_files_atlas){
-    name = tools::file_path_sans_ext(basename(m))
-    M_atlas[[name]] = file2mesh(m, clean=FALSE)
-  }
-  
-  
-  # Combine landmarks into one list and check that each landmark set has a mesh
-  L_shape = c(L_e10, L_e105, L_e11)
-    
-  
-  M_all = c(M_e10, M_e105, M_e11)
-
-  #common_names = intersect(names(L_all), names(M_all))
-  #if(length(common_names) < length(L_all)) warning("Some landmarks or meshes do not have matching names; using intersection")
-  
-  
-  # Exclude any nonintersecting samples
-  L_shape = L_shape[common_names]
-  M_all = M_all[common_names]
-  # Now we can add landmarks for the cell sets and atlases with them
-  L_all = c(L_shape, L_cell)
-  #Build landmark array with all samples
-  land_arr_rps = build_landmark_array(L_all)
-  
-  # NOTE: If using meshes from 3DSlicer, you may need to convert landmarks between RAS and LPS:
-  land_arr = land_arr_rps
-  land_arr[,c(1,2),] = -land_arr[,c(1,2),]
-
-  # create group vector aligned to columns of land_arr that describes which sample belongs to which age, derived from separated age groups
-  group_vec = ifelse(names(L_all) %in% names(L_e10), "e10",
-                     ifelse(names(L_all) %in% names(L_e105), "e105",
-                            ifelse(names(L_all) %in% names(L_e11), "e11", 
-                                   ifelse(names(L_all) %in% names(L_cell), "cell",
-                                          ifelse(names(L_all) %in% names(L_atlas), "atlas", "NA")))))
-# Register samples
-  # Run GPA
-  gps = gpagen(land_arr, ProcD = FALSE)
-  
-  # After GPA, compute group mean shapes for each group seperately
-  mean_e10 = mshape(gps$coords[,,which(group_vec=="e10")]) # p x 3
-  mean_e105 = mshape(gps$coords[,,which(group_vec=="e105")])
-  mean_e11 = mshape(gps$coords[,,which(group_vec=="e11")])
-  mean_all = mshape(gps$coords)
-  
-  # Visualize mean shapes, if you want
-  open3d()
-  shade3d(M_all$Dec2_E105_3, alpha = 0.7, color = "grey70", specular = 1) 
-  # Plot sample landmarks
-  plot3d(L_all$Dec2_E105_3, size = 10, col = "red", add=TRUE)
-  # Plot avg landmarks
-  plot3d(mean_e105, size = 5, add=TRUE)
-
-  
-  #TODO: Atlas meshes that do not come from slicer must be converted between coordinate systems
-  # M_atlas = lapply(M_atlas, LPS2RAS)
-  
-  #Atlas generation by morphing an atlas mesh to the average LMs
-  e10_mean_shape = tps3d(M_atlas$e10_atlas, L_atlas$e10_atlas, mean_e10)
-  e105_mean_shape = tps3d(M_atlas$e105_atlas, L_atlas$e105_atlas, mean_e105)
-  e11_mean_shape = tps3d(M_atlas$e11_atlas, L_atlas$e11_atlas, mean_e11)
-  
-  e105_from_e10 = tps3d(M_atlas$e10_atlas, L_atlas$e10_atlas, mean_e105)
-  e10_from_e105 = tps3d(M_atlas$e105_atlas, L_atlas$e105_atlas, mean_e10)
-  e11_from_e105 = tps3d(M_atlas$e105_atlas, L_atlas$e105_atlas, mean_e11)
-  e105_from_e11 = tps3d(M_atlas$e11_atlas, L_atlas$e11_atlas, mean_e105)
-  e11_from_e10 = tps3d(M_atlas$e10_atlas, L_atlas$e10_atlas, mean_e11)
-  
-
-  
+  # Convert atlas meshes to LPS
+  M_all = lapply(M_all, LPS2RAS)
+  M_atlas = lapply(M_atlas, LPS2RAS)
+  # Quick test plot: Mean shape and LMs
   shade3d(e105_mean_shape, alpha = 0.7, color = "white", specular = 1)
-  shade3d(e105_from_e10, alpha = 0.7, color = "yellow", specular = 1)
-  plot3d(mean_e10, size = 10, col = "red", add=TRUE)
-  
-  shade3d(e10_mean_shape, alpha = 0.8, color = "white", specular = 1)
-  plot3d(mean_e10, size = 10, col = "red", add=TRUE)
+  plot3d(mean_e105, size = 10, col = "red", add=TRUE)
+
 # Plot vectors of growth on average mesh
   # Draw arrows from e10 mean to e105 mean
   growth_vecs <- mean_e105 - mean_e10
@@ -554,19 +437,20 @@ close3d()
   
   
   
+#### PART 4 ####
+### Relating mitotic orientation to shape change
   
+# For each cell, average the unit vector of all angles within a defined area (300 pixels?) and store as avg_x, avg_y, and avg_z
   
-# Based on 3D angle registrations, generate an average mitotic angle at each landmark position and plot (ask david for arrow code?)
-
-#TODO: Replace all above functions with real atlases (thanks Alejandro)
-  # Temporary best meshes:
-  # E10.0: Dec2_e10_12
-  # E10.5: Dec2_E105_3
-  # E11.0: Feb12_E115_2
+# Calculate the smallest angle between the two 3D unit vectors and store this score as "alignment"
   
+# Outer plots: mitotic orientation and alignment
+  # At each vertex of the mean E10.5 mesh, calculate an average alignment score and mitotic angle from every cell within the same radius.
+  # I can likely borrow logic here from the alignment calculation itself
   
-  
-  
+# Shell plots
+  # Shrink the shell by 1.5x the alignment radius, such that every cell is included at least once in the radius calculation.
+  # Repeat the above analyses on each of these nested shells
   
   
 #### PART 5 ####
