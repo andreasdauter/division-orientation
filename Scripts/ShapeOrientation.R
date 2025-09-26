@@ -28,6 +28,7 @@ library(cowplot)
 library(compositions)
 library(colorRamps)
 library(RColorBrewer)
+library(dbscan)
 
 source("GitHub/division-orientation/Scripts/heatmapGIF.R")
 
@@ -65,10 +66,31 @@ read_csv_landmarks = function(file){
   return(lma)
 }
 
-# Calculate distance between two angles
+# Calculate distance between two 2d angles
 angle_between <- function(u, v) {
   cosang <- sum(u * v) / (sqrt(sum(u^2)) * sqrt(sum(v^2)))
   acos(pmin(pmax(cosang, -1), 1)) * 180 / pi
+}
+
+#Calculate distance between two 3d angles
+angle_between_3d <- function(u, v) {
+  # Ensure numeric vectors
+  u <- as.numeric(u)
+  v <- as.numeric(v)
+  
+  # Normalize (safety step, in case vectors are not unit length)
+  u <- u / sqrt(sum(u^2))
+  v <- v / sqrt(sum(v^2))
+  
+  # Dot product
+  dot <- sum(u * v)
+  
+  # Clamp to avoid numerical issues (dot might be slightly >1 or < -1 due to rounding)
+  dot <- max(min(dot, 1.0), -1.0)
+  
+  # Angle in radians → convert to degrees
+  theta <- acos(dot) * 180 / pi
+  return(theta)
 }
 
 # read landmarks and meshes; assume matching names (without extension)
@@ -440,9 +462,48 @@ close3d()
 #### PART 4 ####
 ### Relating mitotic orientation to shape change
   
-# For each cell, average the unit vector of all angles within a defined area (300 pixels?) and store as avg_x, avg_y, and avg_z
+# For each cell, average the unit vector of all angles within a defined area (200 microns, to start) and store as avg_x, avg_y, and avg_z
+    # NOTE: Alignment is a RELATIVE value and does depend on the choice of radius here
+  align_radius = 0.2
+  
+  # Preallocate storage for the average orientation vector components, since the calculation will take a long time.
+  avg_x = numeric(nrow(angles_flat))
+  avg_y = numeric(nrow(angles_flat))
+  avg_z = numeric(nrow(angles_flat))
+  
+  # Very handy nearest neighbours function from dbscan. Requires coordinates as a matrix
+  angle_coords = as.matrix(angles_flat[, c("t_x", "t_y", "t_z")])
+  neighbors = frNN(angle_coords, eps = align_radius)
+  
+  # Loop through each cell, computing the average orientation vector in the alignment radius
+  for (i in seq_along(neighbors$id)) {
+    idx <- neighbors$id[[i]]  # indices of neighbors within radius
+    avg_x[i] <- mean(angles_flat$avec_rot_x[idx])
+    avg_y[i] <- mean(angles_flat$avec_rot_y[idx])
+    avg_z[i] <- mean(angles_flat$avec_rot_z[idx])
+  }
+  
+  # Add angles back into the dataframe
+  angles_flat$avg_x <- avg_x
+  angles_flat$avg_y <- avg_y
+  angles_flat$avg_z <- avg_z
   
 # Calculate the smallest angle between the two 3D unit vectors and store this score as "alignment"
+  
+  angles_flat$alignment <- mapply(function(ax, ay, az, gx, gy, gz) {
+    theta <- angle_between_3d(
+      c(ax, ay, az),
+      c(gx, gy, gz)
+    )
+    # Data is directionless: angle and its supplement are equivalent. As such, we look for the lowest.
+    min(theta, 180 - theta)
+  },
+  ax = angles_flat$avec_rot_x,
+  ay = angles_flat$avec_rot_y,
+  az = angles_flat$avec_rot_z,
+  gx = angles_flat$avg_x,
+  gy = angles_flat$avg_y,
+  gz = angles_flat$avg_z)
   
 # Outer plots: mitotic orientation and alignment
   # At each vertex of the mean E10.5 mesh, calculate an average alignment score and mitotic angle from every cell within the same radius.
