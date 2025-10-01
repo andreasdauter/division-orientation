@@ -123,20 +123,21 @@ transform_point = function(x, y, z, centroid, cs, R) {
 }
 
 # This is a function used in Part 4 to generate a nesting isomorphic set of surfaces.
-shrink_mesh <- function(mesh, factor, center = NULL) {
-  verts <- t(mesh$vb[1:3, ])
+shrink_mesh <- function(mesh, factors, center) {
+  # mesh: mesh3d object
+  # factors: numeric vector of scaling factors (e.g. c(1.0, 0.75, 0.5))
+  # center: numeric vector of length 3 (x,y,z)
   
-  if (is.null(center)) {
-    center <- colMeans(verts)
-  }
+  verts <- t(mesh$vb[1:3, ])   # n_vertices × 3
   
-  # Shift, scale, shift back
-  verts_scaled <- (verts - center) * factor + center
-  
-  # Update mesh
-  mesh_new <- mesh
-  mesh_new$vb[1:3, ] <- t(verts_scaled)
-  return(mesh_new)
+  lapply(factors, function(f) {
+    verts_scaled <- sweep(verts, 2, center, FUN = "-") * f + 
+      matrix(center, nrow(verts), 3, byrow = TRUE)
+    
+    mesh_new <- mesh
+    mesh_new$vb[1:3, ] <- t(verts_scaled)
+    return(mesh_new)
+  })
 }
 
 
@@ -557,16 +558,20 @@ close3d()
   shade3d(e105_mean_shape, col = vertex_cols, specular = 1, userMatrix = 1, add = TRUE)
 # Shell plots
   # Define the centerpoint for shrinking at the very back of the tissue
-  shell_center = c(0, 0, -0.6)
+  shell_center = c(0, 0, -0.75)
   # Shrink the shell by 1.5x the alignment radius, such that every cell is included at least once in the radius calculation.
-  mesh_inner_test = shrink_mesh(e105_mean_shape, factor = 0.75)
-  shade3d(mesh_inner_test, color = "white", specular = 1, userMatrix = 1, add = TRUE)
+  #mesh_inner_test = shrink_mesh(e105_mean_shape, factor = 0.75)
+  #shade3d(mesh_inner_test, color = "white", specular = 1, userMatrix = 1, add = TRUE)
   
   # Generated a nesting-doll series
-  shell_factors <- c(1.0, 0.75, 0.5, 0.25)  # outer to inner
-  shell_meshes <- lapply(nesting_factors, function(f) shrink_mesh(e105_mean_shape, f))
+  #shell_factors <- c(1.0, 0.75, 0.5, 0.25)  # outer to inner
+  largest_shell = 1.0
+  smallest_shell = 0.5
+  
+  shell_factors <- c(largest_shell, largest_shell - ((largest_shell - smallest_shell)/3), largest_shell - ((largest_shell - smallest_shell)/3*2), smallest_shell)
+  shell_meshes <- lapply(shell_factors, function(f) shrink_mesh(e105_mean_shape, f, shell_center))
   # Repeat local alignment on each of these nested shells. Store in a list, where each page is one shell
-  local_alignment_list <- vector("list", length(shell_meshesmeshes))
+  local_alignment_list <- vector("list", length(shell_meshes))
   
   for (m in seq_along(shell_meshes)) {
     verts <- t(meshes[[m]]$vb[1:3, ])
@@ -601,17 +606,65 @@ close3d()
      vertex_cols_alignment[[m]] <- align_col(local_alignment_list[[m]])
    }
 
-  # Test on the original mesh
-  shade3d(shell_meshes[[1]], col = vertex_cols_alignment[[1]], specular = 1, userMatrix = 1, add = TRUE)
-  shade3d(shell_meshes[[2]], col = vertex_cols_alignment[[2]], specular = 1, userMatrix = 1, add = TRUE)
-  shade3d(shell_meshes[[3]], col = vertex_cols_alignment[[3]], specular = 1, userMatrix = 1, add = TRUE)
-  shade3d(shell_meshes[[4]], col = vertex_cols_alignment[[4]], specular = 1, userMatrix = 1, add = TRUE)
+  # View meshes with alignment, one at a time or together
+  shade3d(shell_meshes[[1]][[1]], col = vertex_cols_alignment[[1]], specular = 1, userMatrix = 1, add = TRUE)
+  shade3d(shell_meshes[[2]][[1]], col = vertex_cols_alignment[[2]], specular = 1, userMatrix = 1, add = TRUE)
+  shade3d(shell_meshes[[3]][[1]], col = vertex_cols_alignment[[3]], specular = 1, userMatrix = 1, add = TRUE)
+  shade3d(shell_meshes[[4]][[1]], col = vertex_cols_alignment[[4]], specular = 1, userMatrix = 1, add = TRUE)
   
   # View meshes without alignment
   open3d()
   cols <- c("red", "orange", "green", "blue")
   for (i in seq_along(shell_meshes)) {
-    shade3d(shell_meshes[[i]], col = cols[i], alpha = 1)  # translucent shells
+    shade3d(shell_meshes[[i]][[1]], col = cols[i], alpha = 1)  # translucent shells
+  }
+  
+  # To verify that all cells are inlcuded, plot them over the nesting set
+  plot3d(cell_coords, size = 1, col = "blue", add = TRUE)
+  
+  
+  
+  ### Moving on: Instead of alignment, let's now make a david plot (arrow at each vertex that describes average orientation)
+  n_verts = nrow(outer_verts)
+  # Coords stored in angle_coords
+  angle_vecs = as.matrix(angles_flat[, c("avec_rot_x", "avec_rot_y", "avec_rot_z")])
+  
+  # Compute average orientation at each vertex of the e10.5 mean shape mesh
+  vertex_vecs <- matrix(NA, nrow = n_verts, ncol = 3)
+  
+  for (i in seq_len(n_verts)) {
+    v <- outer_verts[i, ]
+    
+    # Which cells are within radius
+    dists <- sqrt(rowSums((angle_coords - matrix(v, nrow(angle_coords), 3, byrow = TRUE))^2))
+    idx <- which(dists <= align_radius)
+    
+    if (length(idx) > 0) {
+      # Mean of orientation vectors
+      mean_vec <- colMeans(angle_vecs[idx, , drop = FALSE])
+      # Normalize to unit length
+      mean_vec <- mean_vec / sqrt(sum(mean_vec^2))
+      vertex_vecs[i, ] <- mean_vec
+    } else {
+      vertex_vecs[i, ] <- c(NA, NA, NA)
+    }
+  }
+  
+  # Plot mesh
+  open3d()
+  shade3d(e105_mean_shape, color = "grey80", alpha = 0.3)
+  
+  # Plot arrows, length scaled by alignment score
+  max_len <- 0.02 * mean(diff(range(outer_verts)))  # maximum arrow length
+  
+  for (i in seq_len(n_verts)) {
+    if (all(!is.na(vertex_vecs[i, ])) && !is.na(local_alignment[i])) {
+      arrow_len <- max_len * (local_alignment[i] / max(local_alignment, na.rm = TRUE))  # scale
+      start <- outer_verts[i, ]
+      end   <- outer_verts[i, ] + vertex_vecs[i, ] * arrow_len
+      
+      segments3d(rbind(start, end), col = vertex_cols[i], lwd = 2)
+    }
   }
 #### PART 5 ####
 ### Positional Orientation in the MdP
@@ -619,28 +672,26 @@ close3d()
 
   
   #TESTING: DELETE ALL THIS LATER
+  # Orientation vectors
+  vecs <- angle_vecs  # n x 3 matrix
   
+  # Origins (all zeros)
+  n <- nrow(vecs)
+  origins <- matrix(0, nrow = n, ncol = 3)
   
-  # This is a function used in Part 4 to generate a nesting isomorphic set of surfaces.
-  shrink_mesh <- function(mesh, factor, center = NULL) {
-    verts <- t(mesh$vb[1:3, ])
-    
-    if (is.null(center)) {
-      center <- colMeans(verts)
-    }
-    
-    # Shift, scale, shift back
-    verts_scaled <- (verts - center) * factor + center
-    
-    # Update mesh
-    mesh_new <- mesh
-    mesh_new$vb[1:3, ] <- t(verts_scaled)
-    return(mesh_new)
-  }
-
-  # View meshes without alignment
+  # End points
+  arrow_len <- 1  # unit vectors
+  ends <- origins + vecs * arrow_len
+  
+  # Interleave start and end points for segments3d
+  # segments3d expects a matrix: each 2-row block = one line
+  segments_matrix <- matrix(NA, nrow = n * 2, ncol = 3)
+  segments_matrix[seq(1, n*2, by = 2), ] <- origins
+  segments_matrix[seq(2, n*2, by = 2), ] <- ends
+  
+  # Open 3D window and plot all at once
   open3d()
-  cols <- c("red", "orange", "green", "blue")
-  for (i in seq_along(shell_meshes)) {
-    shade3d(shell_meshes[[i]], col = cols[i], alpha = 1)  # translucent shells
-  }
+  axes3d()
+  segments3d(segments_matrix, col = "blue", lwd = 2)
+
+  
