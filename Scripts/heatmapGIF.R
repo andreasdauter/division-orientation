@@ -146,7 +146,7 @@ heatmapPretty=function(sub1,sub2,path,colExtremes=c("#0288D1", "#D32F2F"),userMa
     #jpeg(paste0(folder,name,"_scale.png"),height=1000,width=275)
     #par(cex=2.75,cex.axis=0.9,bg=c("white", "black")[background],col.lab=c("black", "white")[background],fg=c("black", "white")[background],lwd=5)
   }
-  meshDist(sub1,distvec=dists,rampcolors=col,from=from,to=to,steps=100,titleplot=legend_name,xaxt=5)
+  meshDist(sub2,sub1,from=-0.1,to=0.1,rampcolors=col,steps=100,titleplot=legend_name,xaxt=5)
   # if(legend==TRUE){
   #   axis(2,col.axis=c("black", "white")[background],col=c("black", "white")[background],lwd.ticks=3)
   #   dev.off()

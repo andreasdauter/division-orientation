@@ -122,6 +122,24 @@ transform_point = function(x, y, z, centroid, cs, R) {
   as.list(vec_centered %*% R)
 }
 
+# This is a function used in Part 4 to generate a nesting isomorphic set of surfaces.
+shrink_mesh <- function(mesh, factor, center = NULL) {
+  verts <- t(mesh$vb[1:3, ])
+  
+  if (is.null(center)) {
+    center <- colMeans(verts)
+  }
+  
+  # Shift, scale, shift back
+  verts_scaled <- (verts - center) * factor + center
+  
+  # Update mesh
+  mesh_new <- mesh
+  mesh_new$vb[1:3, ] <- t(verts_scaled)
+  return(mesh_new)
+}
+
+
 #### PART 1 ####
 ### Data preparation and GM
 # Load in data
@@ -198,7 +216,9 @@ M_all = c(M_e10, M_e105, M_e11)
 
 #common_names = intersect(names(L_all), names(M_all))
 #if(length(common_names) < length(L_all)) warning("Some landmarks or meshes do not have matching names; using intersection")
-
+# Convert atlas meshes to LPS
+M_all = lapply(M_all, LPS2RAS)
+M_atlas = lapply(M_atlas, LPS2RAS)
 
 # Exclude any nonintersecting samples
 L_shape = L_shape[common_names]
@@ -366,7 +386,7 @@ close3d()
   M_all = lapply(M_all, LPS2RAS)
   M_atlas = lapply(M_atlas, LPS2RAS)
   # Quick test plot: Mean shape and LMs
-  shade3d(e105_mean_shape, alpha = 0.7, color = "white", specular = 1)
+  shade3d(e105_mean_shape, alpha = 0.7, color = "white", specular = 1, add=TRUE)
   plot3d(mean_e105, size = 10, col = "red", add=TRUE)
 
 # Plot vectors of growth on average mesh
@@ -473,11 +493,11 @@ close3d()
   
   # Very handy nearest neighbours function from dbscan. Requires coordinates as a matrix
   angle_coords = as.matrix(angles_flat[, c("t_x", "t_y", "t_z")])
-  neighbors = frNN(angle_coords, eps = align_radius)
+  neighbours = frNN(angle_coords, eps = align_radius)
   
   # Loop through each cell, computing the average orientation vector in the alignment radius
   for (i in seq_along(neighbors$id)) {
-    idx <- neighbors$id[[i]]  # indices of neighbors within radius
+    idx <- neighbours$id[[i]]  # indices of neighbors within radius
     avg_x[i] <- mean(angles_flat$avec_rot_x[idx])
     avg_y[i] <- mean(angles_flat$avec_rot_y[idx])
     avg_z[i] <- mean(angles_flat$avec_rot_z[idx])
@@ -508,14 +528,119 @@ close3d()
 # Outer plots: mitotic orientation and alignment
   # At each vertex of the mean E10.5 mesh, calculate an average alignment score and mitotic angle from every cell within the same radius.
   # I can likely borrow logic here from the alignment calculation itself
+  #Pull out vertices of the mesh
+  outer_verts <- t(e105_mean_shape$vb[1:3, ])
   
+  vertex_neighbours <- frNN(angle_coords, query = outer_verts, eps = align_radius)
+  # Preallocate local alignment, then average alignment of nearby cells at each vertex
+  local_alignment <- numeric(nrow(outer_verts))
+  
+  for (i in seq_along(vertex_neighbours$id)) {
+    idx <- vertex_neighbours$id[[i]]
+    if (length(idx) > 0) {
+      local_alignment[i] <- mean(angles_flat$alignment[idx])
+    } else {
+      local_alignment[i] <- NA  # If there are no cells nearby, do not assign an alignment value
+    }
+  }
+  
+  align_col_ramp <- colorRampPalette(c("red", "yellow"))
+  
+  # Make colours for each vertex
+  ncol <- 100
+  pal = align_col_ramp(ncol)
+  local_alignment_scaled <- (local_alignment - min(local_alignment, na.rm = TRUE)) / (max(local_alignment, na.rm = TRUE) - min(local_alignment, na.rm = TRUE))
+  col_idx <- round(local_alignment_scaled * (ncol - 1)) + 1
+  vertex_cols <- pal[col_idx]
+
+  # Apply to mesh
+  shade3d(e105_mean_shape, col = vertex_cols, specular = 1, userMatrix = 1, add = TRUE)
 # Shell plots
+  # Define the centerpoint for shrinking at the very back of the tissue
+  shell_center = c(0, 0, -0.6)
   # Shrink the shell by 1.5x the alignment radius, such that every cell is included at least once in the radius calculation.
-  # Repeat the above analyses on each of these nested shells
+  mesh_inner_test = shrink_mesh(e105_mean_shape, factor = 0.75)
+  shade3d(mesh_inner_test, color = "white", specular = 1, userMatrix = 1, add = TRUE)
   
+  # Generated a nesting-doll series
+  shell_factors <- c(1.0, 0.75, 0.5, 0.25)  # outer to inner
+  shell_meshes <- lapply(nesting_factors, function(f) shrink_mesh(e105_mean_shape, f))
+  # Repeat local alignment on each of these nested shells. Store in a list, where each page is one shell
+  local_alignment_list <- vector("list", length(shell_meshesmeshes))
   
+  for (m in seq_along(shell_meshes)) {
+    verts <- t(meshes[[m]]$vb[1:3, ])
+    
+    neighbors <- frNN(angle_coords, query = verts, eps = align_radius)
+    
+    local_alignment <- sapply(neighbors$id, function(idx) {
+      if (length(idx) > 0) {
+        mean(angles_flat$alignment[idx])
+      } else {
+        NA
+      }
+    })
+    
+    local_alignment_list[[m]] <- local_alignment
+  }
+  
+  # For each shell, scale the values on the same axis
+    #Find global max and min
+  all_align <- unlist(local_alignment_list)
+  alignment_min <- min(all_align, na.rm = TRUE)
+  alignment_max <- max(all_align, na.rm = TRUE)
+  
+   align_col <- function(values) {
+     vals_scaled <- (values - alignment_min) / (alignment_max - alignment_min) # Scale alignment values to global maxima
+     col_idx <- round(vals_scaled * (ncol - 1)) + 1
+     return(pal[col_idx])
+   }
+   
+   vertex_cols_alignment <- vector("list", length(meshes))
+   for (m in seq_along(shell_meshes)) {
+     vertex_cols_alignment[[m]] <- align_col(local_alignment_list[[m]])
+   }
+
+  # Test on the original mesh
+  shade3d(shell_meshes[[1]], col = vertex_cols_alignment[[1]], specular = 1, userMatrix = 1, add = TRUE)
+  shade3d(shell_meshes[[2]], col = vertex_cols_alignment[[2]], specular = 1, userMatrix = 1, add = TRUE)
+  shade3d(shell_meshes[[3]], col = vertex_cols_alignment[[3]], specular = 1, userMatrix = 1, add = TRUE)
+  shade3d(shell_meshes[[4]], col = vertex_cols_alignment[[4]], specular = 1, userMatrix = 1, add = TRUE)
+  
+  # View meshes without alignment
+  open3d()
+  cols <- c("red", "orange", "green", "blue")
+  for (i in seq_along(shell_meshes)) {
+    shade3d(shell_meshes[[i]], col = cols[i], alpha = 1)  # translucent shells
+  }
 #### PART 5 ####
 ### Positional Orientation in the MdP
   
 
+  
+  #TESTING: DELETE ALL THIS LATER
+  
+  
+  # This is a function used in Part 4 to generate a nesting isomorphic set of surfaces.
+  shrink_mesh <- function(mesh, factor, center = NULL) {
+    verts <- t(mesh$vb[1:3, ])
+    
+    if (is.null(center)) {
+      center <- colMeans(verts)
+    }
+    
+    # Shift, scale, shift back
+    verts_scaled <- (verts - center) * factor + center
+    
+    # Update mesh
+    mesh_new <- mesh
+    mesh_new$vb[1:3, ] <- t(verts_scaled)
+    return(mesh_new)
+  }
 
+  # View meshes without alignment
+  open3d()
+  cols <- c("red", "orange", "green", "blue")
+  for (i in seq_along(shell_meshes)) {
+    shade3d(shell_meshes[[i]], col = cols[i], alpha = 1)  # translucent shells
+  }
