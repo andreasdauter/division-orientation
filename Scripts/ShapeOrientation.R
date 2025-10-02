@@ -14,6 +14,8 @@ library(Directional)
 library(rgl)
 
 library(Rvcg)
+library(rayvertex)
+library(RANN)
 library(magick)
 library(Evomorph)
 library(vegan)
@@ -676,7 +678,7 @@ close3d()
 #### PART 5 ####
 ### Positional Orientation in the MdP
   
-
+# Note: All angles are stores at this point in angles_flat
   
   #TESTING: DELETE ALL THIS LATER
   # Orientation vectors
