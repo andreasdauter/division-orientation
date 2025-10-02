@@ -621,6 +621,7 @@ close3d()
   
   # To verify that all cells are inlcuded, plot them over the nesting set
   plot3d(cell_coords, size = 1, col = "blue", add = TRUE)
+  axes3d()
   
   
   
@@ -650,22 +651,28 @@ close3d()
     }
   }
   
-  # Plot mesh
+  
+#Plotting! We're going to convert this to a single matrix for faster plotting
+  # Scale vectors by alignment score
+  max_len <- 0.01 * mean(diff(range(outer_verts)))
+  arrow_lengths <- max_len * (local_alignment / max(local_alignment, na.rm = TRUE)) hn
+  
+  # Compute end points
+  ends <- outer_verts + vertex_vecs * arrow_lengths
+  
+  # Interleave start and end points for segments3d
+  segments_matrix <- matrix(NA, nrow = n_verts * 2, ncol = 3)
+  segments_matrix[seq(1, n_verts*2, by = 2), ] <- outer_verts
+  segments_matrix[seq(2, n_verts*2, by = 2), ] <- ends
+  
+  # Interleave colors for each segment
+  # segments3d expects a vector of colors corresponding to each row pair
+  segment_colors <- rep(vertex_cols, each = 2)
+  
+  # Open 3D window and plot
   open3d()
   shade3d(e105_mean_shape, color = "grey80", alpha = 0.3)
-  
-  # Plot arrows, length scaled by alignment score
-  max_len <- 0.02 * mean(diff(range(outer_verts)))  # maximum arrow length
-  
-  for (i in seq_len(n_verts)) {
-    if (all(!is.na(vertex_vecs[i, ])) && !is.na(local_alignment[i])) {
-      arrow_len <- max_len * (local_alignment[i] / max(local_alignment, na.rm = TRUE))  # scale
-      start <- outer_verts[i, ]
-      end   <- outer_verts[i, ] + vertex_vecs[i, ] * arrow_len
-      
-      segments3d(rbind(start, end), col = vertex_cols[i], lwd = 2)
-    }
-  }
+  segments3d(segments_matrix, col = segment_colors, lwd = 2)
 #### PART 5 ####
 ### Positional Orientation in the MdP
   
