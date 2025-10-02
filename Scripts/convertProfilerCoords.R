@@ -66,4 +66,8 @@ sample_list <- lapply(sample_list, function(df) {
            PathName_Spindle))
 })
 
-write.csv(write.csv(spindles, paste(filepath,"AurA_June7_1-3_SpindlePole.csv", sep="/")))
+# Build new file paths with "_adjusted" before the extension
+adjusted_files <- sub("\\.csv$", "_adjusted.csv", point_files)
+
+# Save each dataframe
+mapply(write.csv, sample_list, adjusted_files, MoreArgs = list(row.names = FALSE))
