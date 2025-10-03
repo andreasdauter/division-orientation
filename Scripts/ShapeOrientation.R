@@ -690,7 +690,8 @@ close3d()
   
   
   #Filter invalid intersections out
-  hit_points <- hits[!is.na(hits$hit), c("x","y","z")]
+  hit_mask <- ray_hits$quality == 1
+  hit_points = t(ray_hits$vb[1:3, hit_mask, drop = FALSE])
 # 3. Match intersections to nearest vertex of the mesh
   
 # 4. Smooth over neighbours
