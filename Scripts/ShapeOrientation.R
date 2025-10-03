@@ -675,32 +675,25 @@ close3d()
   open3d()
   shade3d(e105_mean_shape, color = "grey80", alpha = 0.3)
   segments3d(segments_matrix, col = segment_colors, lwd = 2)
+  # TODO: Investigate potential bug with angles beign projected to a plane
 #### PART 5 ####
 ### Positional Orientation in the MdP
   
-# Note: All angles are stores at this point in angles_flat
+# Note: All angles are stored at this point in angles_flat
   
-  #TESTING: DELETE ALL THIS LATER
-  # Orientation vectors
-  vecs <- angle_vecs  # n x 3 matrix
+# 1. Ray construction from coords and vectors
+ rays = list(vb = t(angle_coords), normals = t(angle_vecs))
   
-  # Origins (all zeros)
-  n <- nrow(vecs)
-  origins <- matrix(0, nrow = n, ncol = 3)
+# 2. Calculate ray intersections with the mean mesh
+  class(rays) = "mesh3d"
+  ray_hits <- vcgRaySearch(x = rays, mesh = e105_mean_shape, mindist = TRUE, threads = 2)
   
-  # End points
-  arrow_len <- 1  # unit vectors
-  ends <- origins + vecs * arrow_len
   
-  # Interleave start and end points for segments3d
-  # segments3d expects a matrix: each 2-row block = one line
-  segments_matrix <- matrix(NA, nrow = n * 2, ncol = 3)
-  segments_matrix[seq(1, n*2, by = 2), ] <- origins
-  segments_matrix[seq(2, n*2, by = 2), ] <- ends
+  #Filter invalid intersections out
+  hit_points <- hits[!is.na(hits$hit), c("x","y","z")]
+# 3. Match intersections to nearest vertex of the mesh
   
-  # Open 3D window and plot all at once
-  open3d()
-  axes3d()
-  segments3d(segments_matrix, col = "blue", lwd = 2)
+# 4. Smooth over neighbours
+  
+  # Note: This will have to be visualized from the interior view
 
-  
