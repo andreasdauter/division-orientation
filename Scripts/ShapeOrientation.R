@@ -734,5 +734,30 @@ close3d()
 # 4. Because we have far fewer hits than vertices, we must smooth over neighbours. We do thsi with a gaussian-weighting
   # Note: This will have to be visualized from the interior view
   
-
+  # First: Define bounding box and set sigma as a fraction of this
+  sigma_fraction = 0.1
+  bbox <- apply(mesh_vertices, 2, range)
+  diag_len <- sqrt(sum((bbox[2,] - bbox[1,])^2))
+  gs_sigma <- diag_len * sigma_fraction
  
+  
+  
+  po_counts_smoothed <- gaussian_smooth_vertices(po_counts, mesh_vertices, sigma = gs_sigma, k = 200)
+  # K is the number of nearest neighbours used for smoothing- adjust as needed
+  
+# 5. Visualize
+  # First, set colour scale
+  counts_norm <- counts_smoothed - min(counts_smoothed, na.rm = TRUE)
+  if (max(counts_norm, na.rm = TRUE) > 0) {
+    counts_norm <- counts_norm / max(counts_norm, na.rm = TRUE)
+  } else {
+    counts_norm[] <- 0
+  }
+  po_col_ramp <- colorRampPalette(c("gray", "magenta4"))
+  po_cols <- po_col_ramp(100)[pmax(1, pmin(100, as.integer(cut(counts_norm, breaks = 100, labels = FALSE))))]
+  
+  
+  # Visualize
+  open3d()
+  shade3d(e105_mean_shape, color = po_cols, meshColor = "vertices", specular=1)
+
