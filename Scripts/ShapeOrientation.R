@@ -34,7 +34,9 @@ library(dbscan)
 
 source("GitHub/division-orientation/Scripts/heatmapGIF.R")
 
-# A few helper functions
+
+#### HELPER FUNCTIONS ####
+# Quick convert degrees to radians
 deg_to_rad = function(deg) {
   return(deg * pi / 180)
 }
@@ -140,6 +142,26 @@ shrink_mesh <- function(mesh, factors, center) {
     mesh_new$vb[1:3, ] <- t(verts_scaled)
     return(mesh_new)
   })
+}
+
+# Gaussian smooth function in 3D
+gaussian_smooth_vertices <- function(values, vertices, sigma = 0.1, k = 1) {
+  n <- nrow(vertices)
+  # nearest neighbours for each vertex (includes self as first column)
+  nn <- nn2(vertices, vertices, k = k + 1)  # k+1 so that nn$nn.idx[,1] is self
+  idxs <- nn$nn.idx    # n x (k+1)
+  dists <- nn$nn.dists # n x (k+1)
+  
+  smoothed <- numeric(n)
+  for (i in seq_len(n)) {
+    # indices and distances (including self)
+    neigh_idx <- idxs[i, ]
+    neigh_dist <- dists[i, ]
+    w <- exp(-0.5 * (neigh_dist / sigma)^2)
+    w <- w / sum(w)
+    smoothed[i] <- sum(values[neigh_idx] * w)
+  }
+  return(smoothed)
 }
 
 
@@ -676,6 +698,10 @@ close3d()
   shade3d(e105_mean_shape, color = "grey80", alpha = 0.3)
   segments3d(segments_matrix, col = segment_colors, lwd = 2)
   # TODO: Investigate potential bug with angles beign projected to a plane
+  
+  
+  
+  
 #### PART 5 ####
 ### Positional Orientation in the MdP
   
@@ -692,9 +718,21 @@ close3d()
   #Filter invalid intersections out
   hit_mask <- ray_hits$quality == 1
   hit_points = t(ray_hits$vb[1:3, hit_mask, drop = FALSE])
+    #This is what we'll use for the rest of our analysis- nx3 matrix that contains the coordinates of hit points on the mesh.
+  
 # 3. Match intersections to nearest vertex of the mesh
+  mesh_vertices = t(e105_mean_shape$vb[1:3,, drop = FALSE])
   
-# 4. Smooth over neighbours
+  nn_hits = nn2(mesh_vertices, hit_points, k=1)
+  #nearest_vertex_idx stores the closest vertex ID for each hit point
+  nearest_vertex_idx = nn_hits$nn.idx[,]
   
+  # raw counts per vertex- simplest representation
+  po_counts = integer(nrow(mesh_vertices))
+  po_counts[] <- tabulate(nearest_vertex_idx, nbins = nrow(mesh_vertices))
+  
+# 4. Because we have far fewer hits than vertices, we must smooth over neighbours. We do thsi with a gaussian-weighting
   # Note: This will have to be visualized from the interior view
+  
 
+ 
