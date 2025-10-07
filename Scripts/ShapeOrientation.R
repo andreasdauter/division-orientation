@@ -31,6 +31,7 @@ library(compositions)
 library(colorRamps)
 library(RColorBrewer)
 library(dbscan)
+library(ijtiff)
 
 source("GitHub/division-orientation/Scripts/heatmapGIF.R")
 
@@ -569,16 +570,20 @@ close3d()
     }
   }
   
-  align_col_ramp <- colorRampPalette(c("red", "yellow"))
-  
+  align_col_ramp <- colorRampPalette(c("#1fffd6", "#200345" ))
+  align_col_ramp <- colorRampPalette(c("#1fffd6", "#6204db" ))
+ # "#80ae9a", "#568b87", "#326b77", "#1b485e",
   # Make colours for each vertex
   ncol <- 100
-  pal = align_col_ramp(ncol)
+  #pal = align_col_ramp(ncol)
+  pal = (viridis::magma(100, direction = -1))
   local_alignment_scaled <- (local_alignment - min(local_alignment, na.rm = TRUE)) / (max(local_alignment, na.rm = TRUE) - min(local_alignment, na.rm = TRUE))
   col_idx <- round(local_alignment_scaled * (ncol - 1)) + 1
   vertex_cols <- pal[col_idx]
-
+  
+  userMatrix = par3d()$userMatrix
   # Apply to mesh
+  open3d()
   shade3d(e105_mean_shape, col = vertex_cols, specular = 1, userMatrix = 1, add = TRUE)
 # Shell plots
   # Define the centerpoint for shrinking at the very back of the tissue
@@ -760,4 +765,56 @@ close3d()
   # Visualize
   open3d()
   shade3d(e105_mean_shape, color = po_cols, meshColor = "vertices", specular=1)
+  axes3d()
 
+
+#### PART 5 ####
+### Proliferation and shape change
+  
+# Use ijtiff to load proliferation volume into matrix
+  prol_vol_raw = read_tif(paste(fullpath,"Data", "Volumes", "LMdP_Proliferation_Volume_Cropped.tiff", sep="/"))
+  prol_vol_raw = drop(prol_vol)
+  
+  # Subset to only the x range that contains the tissue
+  nonzero_x <- apply(prol_vol_raw, 1, function(slice) any(slice > 0))
+  nz_x_min <- which(nonzero_x)[1]+2
+  nz_x_max <- tail(which(nonzero_x), 1)-2
+  
+  
+  prol_vol = prol_vol_raw[(nz_x_min):(nz_x_max),,]
+  #Normalize to compare to other measures later
+  prol_x_raw = seq(nz_x_min, nz_x_max)
+  prol_x_norm = seq(0, 1, length.out = length(prol_x_raw))
+  
+  #Calculate the mean and sd across the mediolateral axis
+  
+    # Kinda janky- defining some niche functions to exclude 0s so they play nice with apply
+    mean_ignore0 <- function(x) {
+      x_nonzero <- x[x > 0]
+      if (length(x_nonzero) == 0) return(NA)
+      mean(x_nonzero)
+    }
+    
+    sd_ignore0 <- function(x) {
+      x_nonzero <- x[x > 0]
+      if (length(x_nonzero) <= 1) return(NA)
+      sd(x_nonzero)
+    }
+  
+  # Apply along ML axis
+  ml_prol_mean = apply(prol_vol, 1, mean_ignore0)
+  ml_prol_sd = apply(prol_vol, 1, sd_ignore0)
+  
+  ml_prol_df = data.frame( x = prol_x_norm, mean = ml_prol_mean, sd = ml_prol_sd)
+  
+  ggplot(ml_prol_df, aes(x = x, y = mean)) +
+    geom_ribbon(aes(ymin = mean - sd/2, ymax = mean + sd/2), alpha = 0.3, fill = "skyblue") +
+    geom_line(color = "blue", size = 1) +
+    labs(
+      x = "Mediolateral Position",
+      y = "Mean Proliferation"
+    ) +
+    theme_minimal()
+  
+  
+  # Adding alignment to the same plot
