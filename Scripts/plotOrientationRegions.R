@@ -66,7 +66,7 @@ kuiper.test(x=spindleOrientation)
 
 #### ALTERNATE VERSION: Use this block if you are starting with unit vectors in 3D ####
 spindles = bind_rows(all_angles)
-
+spindles = angles_flat
 ###Subset sample by position along the vertical axis###
 
 ##NOTE: THIS IS CURRENTLY CONFIGURED FOR THE CORONAL PLANE.
@@ -80,7 +80,7 @@ spindles$t_split = spindles$t_x
 
 # Reconstruct in-plane angle projections from the 3D unit vector
 # For different planes, remember to set avec_rot_x, avec_rot_y, and avec_rot_z accordingly here.
-spindles$theta =(atan2(spindles$avec_rot_y, spindles$avec_rot_z))
+spindles$theta =(atan2(spindles$avec_rot_z, spindles$avec_rot_y))
 # Set these indices such that the split axis is 0 and the others are 1
 z_in = 1
 x_in = 0

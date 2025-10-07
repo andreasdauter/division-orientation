@@ -146,7 +146,7 @@ write.csv(paired_df, paste(filepath,"AurA_June7_A_2_LMdP_SpindlePole.csv", sep="
 
 #####################################
 # If you've already generated a paired DF, you can load it in and start here
-paired_df = read.csv(paste(filepath,"paired_geometry_orientation_aligned.csv", sep="/"))
+paired_df = read.csv(paste(fullpath, "Data", "paired_geometry_orientation_aligned.csv", sep="/"))
 # Convert circular data to the correct data type
 paired_df$SpindlePole_AreaShape_Orientation = as.circular(paired_df$SpindlePole_AreaShape_Orientation, units = "degrees", type = "angles")
 paired_df$NucShape_AreaShape_Orientation = as.circular(paired_df$NucShape_AreaShape_Orientation, units = "degrees", type = "angles")
@@ -202,7 +202,7 @@ paired_df = paired_df[close_distances,]
 ###### What features maximally covary with orientation?
   # Initialize df to record correlations
   feature_correlations = data.frame(variable = character(), correlation = numeric(), p_value = numeric(), stringsAsFactors = FALSE)
-  feature_subset = paired_df %>% dplyr::select(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MajorAxisLength, NucShape_AreaShape_MinorAxisLength, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter)
+  feature_subset = paired_df %>% dplyr::select(NucShape_Location_Center_Z,Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MajorAxisLength, NucShape_AreaShape_MinorAxisLength, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter)
   # Linear correlations with significance testing per variable
   for (var in names(feature_subset)) {
     cortest = cor.test(feature_subset$Alignment, feature_subset[[var]], method = "spearman")
