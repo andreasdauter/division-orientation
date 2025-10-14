@@ -493,7 +493,6 @@ close3d()
   sub1 = e11_mean_shape
   sub2 = e105_mean_shape
   path = "GitHub/division-orientation/Figures/heatmapTest.png"
-  userMatrix = front
   legend_name = "Closest point distance"
   bg = "white"
   limit = 0.3
@@ -817,4 +816,73 @@ close3d()
     theme_minimal()
   
   
-  # Adding alignment to the same plot
+  ### Adding alignment to the same plot
+  
+  # First, subset our angles list into just the variables of interest so we can normalize
+  ml_alignment = angles_flat %>% dplyr::select(alignment, t_x)
+  ml_alignment$x_norm = ml_alignment$t_x + 0.5
+  
+  # Alternative: 2D alignment set:
+  ml_alignment = feature_subset %>% dplyr::select(Alignment, NucShape_Location_Center_Z)
+  colnames (ml_alignment) = c("alignment", "t_x")
+  ml_min = min(ml_alignment$t_x)
+  ml_max = max(ml_alignment$t_x)
+  ml_range = c(ml_min, ml_max)
+  ml_alignment$x_norm =(ml_alignment$t_x - ml_min) / diff(ml_range)
+  # Data is not continuous- we'll need to bin
+  n_bins = 50
+  alignment_summary <- ml_alignment %>%
+    mutate(bin = cut(x_norm, breaks = seq(0, 1, length.out = n_bins + 1),
+                     include.lowest = TRUE, labels = FALSE)) %>%
+    group_by(bin) %>%
+    summarize(
+      x = mean((bin - 0.5) / n_bins),  # center of each bin (normalized)
+      align_mean = mean(alignment, na.rm = TRUE),
+      align_sd = sd(alignment, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  
+  # Dual axis plot:
+    #Scale factor is derived from the intensity range (0-255) over the alignment range (0-90)
+  alignment_scale_factor = 255/90
+    
+    #Proliferation
+  ml_prol_plot = ggplot() +
+    geom_ribbon(data = ml_prol_df,
+              aes(x = x, y = mean, ymin = mean - sd/2, ymax = mean + sd/2), alpha = 0.3, fill = "skyblue") +
+    geom_line(data = ml_prol_df,
+              aes(x = x, y = mean), color = "blue", size = 1) +
+    #Alignment
+    geom_smooth(data = ml_alignment,
+                aes(x = x_norm, y = alignment*alignment_scale_factor),
+                method = "lm", span = 0.3,  # adjust span for smoothing
+                color = "red3", se = TRUE, fill = "tomato", alpha = 0.3) +
+    
+    # Style
+    scale_y_continuous(
+      name = "Mean Proliferation",
+      sec.axis = sec_axis(~ .*(90/255), name = "Alignment",
+      labels = function(x) paste0(round(x), "°"))
+    ) +
+    labs(
+      x = "Mediolateral Position",
+      y = "Mean Proliferation"
+    ) +
+    coord_cartesian(xlim = c(0, 1), ylim = c(40, 150), expand = FALSE)+
+    theme_light(base_size = 9) +
+    theme(
+      axis.title.x = element_text(margin = margin(t = 10)),
+      axis.title.y = element_text(color = "black", margin = margin(r = 10)),
+      axis.title.y.right = element_text(color = "black", margin = margin(l = 10)),
+      axis.title = element_text(face = "bold", size = 9),
+      axis.text = element_text(color = "black", size = 9),
+      axis.ticks = element_line(color = "#E0E0E0", lineend = "round"),
+      legend.title = element_text(face = "bold", size = 9),
+      legend.text = element_text(size = 9),
+      panel.border = element_rect(color = "#E0E0E0"))
+  ml_prol_plot
+
+  ggsave(filename = "Figures/ML_Prolif_Alignment_new.pdf", ml_prol_plot, height = 10, width = 12, unit = "cm", dpi = "print")
+  
+  
