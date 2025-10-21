@@ -176,7 +176,7 @@ angles_path = paste(filepath,"Angles", "Mandibles", sep="/")
 
 ## Load in data: mandible landmarks from E10.0 and E10.5 volumes, and meshes from tissue segmentations
 # This analysis uses a reduced 7-landmark scheme for the mandible alone.
-# ---------------------------
+
 # Paths to edit
 gmpath = paste(fullpath,"Data", "GM", sep="/")
 landmark_dir_e10 = paste(gmpath,"Landmarks", "e10", sep="/") # folder with .csv files for e10
@@ -215,22 +215,22 @@ L_atlas = read_all_landmarks(lm_files_atlas)
 M_e10 = list()
 for(m in mesh_files_e10){
   name = tools::file_path_sans_ext(basename(m))
-  M_e10[[name]] = file2mesh(m, clean=FALSE)
+  M_e10[[name]] = file2mesh(m)
 }
 M_e105 = list()
 for(m in mesh_files_e105){
   name = tools::file_path_sans_ext(basename(m))
-  M_e105[[name]] = file2mesh(m, clean=FALSE)
+  M_e105[[name]] = file2mesh(m)
 }
 M_e11 = list()
 for(m in mesh_files_e11){
   name = tools::file_path_sans_ext(basename(m))
-  M_e11[[name]] = file2mesh(m, clean=FALSE)
+  M_e11[[name]] = file2mesh(m)
 }
 M_atlas= list()
 for(m in mesh_files_atlas){
   name = tools::file_path_sans_ext(basename(m))
-  M_atlas[[name]] = file2mesh(m, clean=FALSE)
+  M_atlas[[name]] = file2mesh(m)
 }
 
 
@@ -246,9 +246,12 @@ M_all = c(M_e10, M_e105, M_e11)
 M_all = lapply(M_all, LPS2RAS)
 M_atlas = lapply(M_atlas, LPS2RAS)
 
+M_all = lapply(M_all, vcgUpdateNormals)
+M_atlas = lapply(M_atlas, vcgUpdateNormals)
+
 # Exclude any nonintersecting samples
-L_shape = L_shape[common_names]
-M_all = M_all[common_names]
+#L_shape = L_shape[common_names]
+#M_all = M_all[common_names]
 # Now we can add landmarks for the cell sets and atlases with them
 L_all = c(L_shape, L_cell)
 #Build landmark array with all samples
@@ -279,6 +282,9 @@ e10_mean_shape = tps3d(M_atlas$e10_atlas, L_atlas$e10_atlas, mean_e10)
 e105_mean_shape = tps3d(M_atlas$e105_atlas, L_atlas$e105_atlas, mean_e105)
 e11_mean_shape = tps3d(M_atlas$e11_atlas, L_atlas$e11_atlas, mean_e11)
 
+e10_mean_shape = vcgUpdateNormals(e10_mean_shape)
+e105_mean_shape = vcgUpdateNormals(e105_mean_shape)
+e11_mean_shape = vcgUpdateNormals(e11_mean_shape)
 # 
 
 #### PART 2 ####
@@ -408,13 +414,13 @@ close3d()
 #### PART 3 ####
 ### Geometric morphometric analysis of shape change
 
-  # Convert atlas meshes to LPS
-  M_all = lapply(M_all, LPS2RAS)
-  M_atlas = lapply(M_atlas, LPS2RAS)
+  # If you have not converted atlas meshes to LPS, you may need to go back and do so if they do not match up with your coordinates
+
   # Quick test plot: Mean shape and LMs
   shade3d(e105_mean_shape, alpha = 0.7, color = "white", specular = 1, add=TRUE)
   plot3d(mean_e105, size = 10, col = "red", add=TRUE)
 
+  front = par3d()$userMatrix
 # Plot vectors of growth on average mesh
   # Draw arrows from e10 mean to e105 mean
   growth_vecs <- mean_e105 - mean_e10
@@ -455,34 +461,36 @@ close3d()
   colFun <- function(vals) fixedColFun(vals, minVal = -0.1, maxVal = 0.1, palette = col)
   
   
-  meshDist(e105_mean_shape, e11_mean_shape, lim = c(-.2, .2), shade = TRUE, displace = FALSE, userMatrix = front, steps = 10, rampcolors = col)
-  meshDist(e105_mean_shape, e11_from_e105, lim = c(-.2, .2), shade = TRUE, displace = FALSE, userMatrix = front, steps = 10, rampcolors = col)
-  meshDist(e105_from_e11, e11_mean_shape, lim = c(-.2, .2), shade = TRUE, displace = FALSE, userMatrix = front, steps = 10, rampcolors = col)
+  e105_e11_hm = meshDist(e105_mean_shape, e11_mean_shape, lim = c(-.2, .2), shade = TRUE, displace = FALSE, userMatrix = front, steps = 10, rampcolors = col)
   
-  meshDist(e10_mean_shape, e105_from_e10, lim = c(-.2, .2), shade = TRUE, displace = FALSE, userMatrix = front, steps = 10, rampcolors = col)
-  meshDist(e10_mean_shape, e105_mean_shape, lim = c(-.2, .2), shade = FALSE, displace = TRUE, userMatrix = front, steps = 10, rampcolors = col)
-  meshDist(e10_from_e105, e105_mean_shape, lim = c(-.2, .2), shade = TRUE, displace = FALSE, userMatrix = front, steps = 10, rampcolors = col)
+  e10_e105_hm = meshDist(e10_mean_shape, e105_mean_shape, lim = c(-.2, .2), shade = TRUE, displace = FALSE, userMatrix = front, steps = 10, rampcolors = col)
+  open3d(userMatrix = front)
+  
+  
+
+  
+  
+  
+  
+  
+  meshDist(e105_mean_shape, e11_mean_shape, shade = FALSE, displace = TRUE, userMatrix = front, steps = 10, rampcolors = col)
+  
+
+  
+  meshDist(e10_mean_shape, e105_mean_shape, lim = c(-.2, .2), shade = TRUE, displace = FALSE, userMatrix = front, steps = 10, rampcolors = col)
   
   shade3d(e10_mean_shape, alpha = 0.7, color = "white", specular = 1)
   shade3d(e105_mean_shape, alpha = 0.7, color = "blue", specular = 1)
   
-  open3d()
-  shade3d(e10_mean_shape, col = "white", specular = 1, alpha = 0.5)
-  shade3d(e105_mean_shape, col = "red", specular = 1, alpha = 0.5)
-  plot3d(mean_e10, col = "black", type = "s", specular = 1, add = TRUE, size = 1)
-  plot3d(mean_e105, col = "red", type = "s", specular = 1, add = TRUE, size = 1)
+  open3d(userMatrix = front)
+  shade3d(e10_mean_shape, col = "white", specular = 1, alpha = 1, userMatrix = front)
+  shade3d(e105_mean_shape, col = "white", specular = 1, alpha = 1, userMatrix = front)
+  shade3d(e11_mean_shape, col = "white", specular = 1, alpha = 1, userMatrix = front)
   
-  open3d()
-  shade3d(e10_from_e105, col = "white", specular = 1, alpha = 0.8, userMatrix = front)
-  plot3d(mean_e10, col = "red", type = "s", specular = 1, add = TRUE, size = 1)
-
-  open3d()
-  shade3d(e105_from_e10, col = "white", specular = 1, alpha = 0.8, userMatrix = front)
-  plot3d(mean_e105, col = "red", type = "s", specular = 1, add = TRUE, size = 1)
   
-  open3d()
-  shade3d(e11_from_e105, col = "white", specular = 1, alpha = 0.8, userMatrix = front)
   plot3d(mean_e11, col = "red", type = "s", specular = 1, add = TRUE, size = 1)
+  plot3d(mean_e105, col = "red", type = "s", specular = 1, add = TRUE, size = 1)
+  plot3d(mean_e10, col = "red", type = "s", specular = 1, add = TRUE, size = 1)
   
   
   front = par3d()$userMatrix
@@ -521,7 +529,7 @@ close3d()
   neighbours = frNN(angle_coords, eps = align_radius)
   
   # Loop through each cell, computing the average orientation vector in the alignment radius
-  for (i in seq_along(neighbors$id)) {
+  for (i in seq_along(neighbours$id)) {
     idx <- neighbours$id[[i]]  # indices of neighbors within radius
     avg_x[i] <- mean(angles_flat$avec_rot_x[idx])
     avg_y[i] <- mean(angles_flat$avec_rot_y[idx])
@@ -569,8 +577,6 @@ close3d()
     }
   }
   
-  align_col_ramp <- colorRampPalette(c("#1fffd6", "#200345" ))
-  align_col_ramp <- colorRampPalette(c("#1fffd6", "#6204db" ))
  # "#80ae9a", "#568b87", "#326b77", "#1b485e",
   # Make colours for each vertex
   ncol <- 100
@@ -580,9 +586,8 @@ close3d()
   col_idx <- round(local_alignment_scaled * (ncol - 1)) + 1
   vertex_cols <- pal[col_idx]
   
-  userMatrix = par3d()$userMatrix
   # Apply to mesh
-  open3d()
+  open3d(userMatrix = front)
   shade3d(e105_mean_shape, col = vertex_cols, specular = 1, userMatrix = 1, add = TRUE)
 # Shell plots
   # Define the centerpoint for shrinking at the very back of the tissue
@@ -602,7 +607,7 @@ close3d()
   local_alignment_list <- vector("list", length(shell_meshes))
   
   for (m in seq_along(shell_meshes)) {
-    verts <- t(meshes[[m]]$vb[1:3, ])
+    verts <- t(shell_meshes[[m]][[1]]$vb[1:3, ])
     
     neighbors <- frNN(angle_coords, query = verts, eps = align_radius)
     
@@ -613,7 +618,7 @@ close3d()
         NA
       }
     })
-    
+    #local_alignment[is.na(local_alignment)] = mean(angles_flat$alignment)
     local_alignment_list[[m]] <- local_alignment
   }
   
@@ -623,28 +628,40 @@ close3d()
   alignment_min <- min(all_align, na.rm = TRUE)
   alignment_max <- max(all_align, na.rm = TRUE)
   
+  alignment_min <- 30
+  alignment_max <- 60
+  
+  
    align_col <- function(values) {
      vals_scaled <- (values - alignment_min) / (alignment_max - alignment_min) # Scale alignment values to global maxima
      col_idx <- round(vals_scaled * (ncol - 1)) + 1
      return(pal[col_idx])
    }
    
-   vertex_cols_alignment <- vector("list", length(meshes))
+   vertex_cols_alignment <- vector("list", length(shell_meshes))
    for (m in seq_along(shell_meshes)) {
      vertex_cols_alignment[[m]] <- align_col(local_alignment_list[[m]])
    }
 
   # View meshes with alignment, one at a time or together
-  shade3d(shell_meshes[[1]][[1]], col = vertex_cols_alignment[[1]], specular = 1, userMatrix = 1, add = TRUE)
-  shade3d(shell_meshes[[2]][[1]], col = vertex_cols_alignment[[2]], specular = 1, userMatrix = 1, add = TRUE)
-  shade3d(shell_meshes[[3]][[1]], col = vertex_cols_alignment[[3]], specular = 1, userMatrix = 1, add = TRUE)
-  shade3d(shell_meshes[[4]][[1]], col = vertex_cols_alignment[[4]], specular = 1, userMatrix = 1, add = TRUE)
+  open3d(userMatrix = front)
+  shade3d(shell_meshes[[1]][[1]], col = vertex_cols_alignment[[1]], specular = 1, add = TRUE)
+  shade3d(shell_meshes[[2]][[1]], col = vertex_cols_alignment[[2]], specular = 1, add = TRUE)
+  shade3d(shell_meshes[[3]][[1]], col = vertex_cols_alignment[[3]], specular = 1, add = TRUE)
+  shade3d(shell_meshes[[4]][[1]], col = vertex_cols_alignment[[3]], specular = 1, add = TRUE)
+  
+  # For better visualization, bring in a mostly transparent model of the mandible
+  LMdP_volume = file2mesh(paste(filepath, "e105_volume_LMdP.ply", sep = "/"))
+  LMdP_volume = LPS2RAS(LMdP_volume)
+  mandible_volume = tps3d(LMdP_volume, L_atlas$e105_atlas, mean_e105)
+  shade3d(mandible_volume, color = "lightgray", alpha = 0.3, specular = 1, add = TRUE)
+
   
   # View meshes without alignment
   open3d()
   cols <- c("red", "orange", "green", "blue")
   for (i in seq_along(shell_meshes)) {
-    shade3d(shell_meshes[[i]][[1]], col = cols[i], alpha = 1)  # translucent shells
+    shade3d(shell_meshes[[i]][[1]], col = cols[i], specular = 1, alpha = 1)  # translucent shells
   }
   
   # To verify that all cells are inlcuded, plot them over the nesting set
@@ -683,7 +700,7 @@ close3d()
 #Plotting! We're going to convert this to a single matrix for faster plotting
   # Scale vectors by alignment score
   max_len <- 0.01 * mean(diff(range(outer_verts)))
-  arrow_lengths <- max_len * (local_alignment / max(local_alignment, na.rm = TRUE)) hn
+  arrow_lengths <- max_len * (local_alignment / max(local_alignment, na.rm = TRUE))
   
   # Compute end points
   ends <- outer_verts + vertex_vecs * arrow_lengths
@@ -698,8 +715,8 @@ close3d()
   segment_colors <- rep(vertex_cols, each = 2)
   
   # Open 3D window and plot
-  open3d()
-  shade3d(e105_mean_shape, color = "grey80", alpha = 0.3)
+  open3d(userMatrix = front)
+  # shade3d(e105_mean_shape, color = "grey80", alpha = 0.3)
   segments3d(segments_matrix, col = segment_colors, lwd = 2)
   # TODO: Investigate potential bug with angles beign projected to a plane
   
@@ -751,7 +768,7 @@ close3d()
   
 # 5. Visualize
   # First, set colour scale
-  counts_norm <- counts_smoothed - min(counts_smoothed, na.rm = TRUE)
+  counts_norm <- po_counts_smoothed - min(po_counts_smoothed, na.rm = TRUE)
   if (max(counts_norm, na.rm = TRUE) > 0) {
     counts_norm <- counts_norm / max(counts_norm, na.rm = TRUE)
   } else {
@@ -762,7 +779,7 @@ close3d()
   
   
   # Visualize
-  open3d()
+  open3d(userMatrix = front)
   shade3d(e105_mean_shape, color = po_cols, meshColor = "vertices", specular=1)
   axes3d()
 
@@ -772,7 +789,7 @@ close3d()
   
 # Use ijtiff to load proliferation volume into matrix
   prol_vol_raw = read_tif(paste(fullpath,"Data", "Volumes", "LMdP_Proliferation_Volume_Cropped.tiff", sep="/"))
-  prol_vol_raw = drop(prol_vol)
+  prol_vol_raw = drop(prol_vol_raw)
   
   # Subset to only the x range that contains the tissue
   nonzero_x <- apply(prol_vol_raw, 1, function(slice) any(slice > 0))

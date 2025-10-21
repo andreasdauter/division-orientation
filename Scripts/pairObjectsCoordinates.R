@@ -211,7 +211,7 @@ paired_df = paired_df[close_distances,]
     
   }
   
-  feature_subset = paired_df %>% dplyr::select(c(Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MajorAxisLength, NucShape_AreaShape_MinorAxisLength, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter))
+  feature_subset = paired_df %>% dplyr::select(c(NucShape_Location_Center_Z,Alignment, NucShape_AreaShape_Area, NucShape_AreaShape_Eccentricity, NucShape_AreaShape_MajorAxisLength, NucShape_AreaShape_MinorAxisLength, NucShape_AreaShape_MeanRadius, NucShape_AreaShape_Perimeter))
   # Additional Feature: AspectRatio, defined as the ratio between the major and minor axes
   feature_subset = feature_subset %>%
     rowwise() %>%
@@ -242,7 +242,7 @@ pc_df = cbind(features_pca, scores)
 # PC plots
 ggplot(pc_df, aes(x=PC1, y = PC2, color = Alignment)) +
   geom_point(size = 3) +
-  scale_color_gradient(low = "yellow", high = "red") +
+  scale_color_viridis_c(option = "plasma") +
   geom_segment(data = evecs*7,
                aes(x = 0, y = 0, xend = PC1, yend = PC2),
                linewidth = 1.5,
@@ -253,7 +253,7 @@ ggplot(pc_df, aes(x=PC1, y = PC2, color = Alignment)) +
 
 ggplot(pc_df, aes(x=PC2, y = PC3, color = Alignment)) +
   geom_point(size = 3) +
-  scale_color_gradient(low = "yellow", high = "red") +
+  scale_color_viridis_c(option = "plasma") +
   theme_minimal() + 
   labs(color = "Alignment", x = "PC2", y = "PC3", title = "PCA Plot of Nuclear Geometry")
 
@@ -318,7 +318,7 @@ ggplot(pc_df, aes(x=PC3, y = PC4, color = Group)) +
   labs(color = "ML Position", x = "PC3", y = "PC4", title = "PCA Plot of Nuclear Geometry")
 # Looks like variance might be different- use Levene's test to evaluate. We'll try BoxM test after
 pc_df$Group = as.factor(pc_df$Group)
-leveneTest(PC4 ~ Group, data = pc_df)
+leveneTest(PC1 ~ Group, data = pc_df)
 
 #Variances are different between PCs 1 and 4 after Bonferroni Correction
 
